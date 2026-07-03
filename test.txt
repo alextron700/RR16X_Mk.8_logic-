@@ -1,0 +1,32 @@
+# --- MAIN PROGRAM EXECUTION ENTRY ---
+# 1. Allocate some high-level variables
+;counter = 1
+;max_loops = 3
+
+# 2. Print a starting banner
+print 'S'
+print 'T'
+print 'A'
+print 'R'
+print 'T'
+
+# 3. Call our first layer subroutine
+call outer_routine
+;test:
+print 'D'
+print 'O'
+print 'N'
+print 'E'
+HLT
+
+# --- SUBROUTINE LAYER 1 ---
+outer_routine:
+    print 'O'
+    # Call a nested subroutine (Testing Stack Slot 2 deep!)
+    call inner_routine
+    RET
+
+# --- SUBROUTINE LAYER 2 ---
+inner_routine:
+    print 'I'
+    RET

@@ -1,0 +1,11 @@
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\AbstractPeripheral.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\AbstractPeripheral.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\bus.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\bus.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\CPU.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\CPU.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\DMA.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\DMA.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\FP32Coprocessor.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\FP32Coprocessor.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\InterruptEnhancer.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\InterruptEnhancer.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\Multiplier.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\Multiplier.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\RR16X_EMULATOR.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\RR16X_EMULATOR.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\Timer.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\Timer.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\UART.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\UART.obj
+C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\WideIntCoprocessor.cpp;C:\Users\s251645\Desktop\AIE projects\RR16X_EMULATOR\RR16X_EMULATOR\x64\Debug\WideIntCoprocessor.obj
