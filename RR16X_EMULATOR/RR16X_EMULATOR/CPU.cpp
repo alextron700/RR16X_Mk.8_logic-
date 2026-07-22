@@ -63,15 +63,12 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	bool LY = (instruction & 0x0008) != 0;
 	int srcY = (instruction & 0x0007);
 	bool A = false;
-	bool B = false;
-	bool C = false;
 	uint32_t pushValue = 0;
 	uint32_t popValue = 0;
 	uint32_t Address = 0;
 	int16_t X = 0;
 	int16_t Y = 0;
 	uint16_t i;
-	uint16_t j;
 	int16_t Result = 0;
 	bool makes = true;
 
@@ -230,21 +227,55 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		makes = false;
 		break;
 	case 12:
-		if (M_flag)
+		i = (M_flag << 3) | Dest;
+		A = false;
+		switch (i)
 		{
-			i = static_cast<uint16_t>(X);
-			j = static_cast<uint16_t>(Y);
-			A = (Dest & 0x4) && i > j;
-			B = (Dest & 0x2) && i == j;
-			C = (Dest & 0x1) && i < j;
+		case 0x0:
+			break;
+		case 0x1:
+			A = X < Y;
+			break;
+		case 0x2:
+			A = X == Y;
+			break;
+		case 0x3:
+			A = X <= Y;
+			break;
+		case 0x4:
+			A = X > Y;
+			break;
+		case 0x5:
+			A = X != Y;
+			break;
+		case 0x6:
+			A = X >= Y;
+			break;
+		case 0x7:
+			A = true;
+		case 0x8:
+			A = static_cast<int16_t>(X) < static_cast<int16_t>(Y);
+			break;
+		case 0x9:
+			A = static_cast<int16_t>(X) == static_cast<int16_t>(Y);
+			break;
+		case 0xA:
+			A = static_cast<int16_t>(X) <= static_cast<int16_t>(Y);
+			break;
+		case 0xB:
+			A = static_cast<int16_t>(X) > static_cast<int16_t>(Y);
+			break;
+		case 0xC:
+			A = static_cast<int16_t>(X) != static_cast<int16_t>(Y);
+			break;
+		case 0xD:
+			A = static_cast<int16_t>(X) >= static_cast<int16_t>(Y);
+			break;
+		default:
+			std::cerr << "Unused or invalid jump condition!\n";
+			return;
 		}
-		else {
-			A = (Dest & 0x4) && X > Y;
-			B = (Dest & 0x2) && X == Y;
-			C = (Dest & 0x1) && X < Y;
-		}
-		
-		if (A || B || C)
+		if (A)
 		{
 			PC = (JR & 0x0000FFFF);
 			programEAM = (JR & 0xFFFF0000) >> 16;
