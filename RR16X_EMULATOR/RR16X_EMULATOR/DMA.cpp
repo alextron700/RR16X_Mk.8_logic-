@@ -1,8 +1,9 @@
 #include "DMA.h"
-DMA::DMA(bus& system_bus, InterruptEnhancer& ie) : Bus(system_bus), enhancer(ie)
+DMA::DMA(bus& system_bus, InterruptEnhancer& ie, uint32_t handler) : Bus(system_bus), enhancer(ie)
 {
 	readableAddresses = { 0x07ff'fff2,0x07ff'fff1,0x07ff'fff0,0x07ff'ffef,0x07ff'ffee};
 	writableAddresses = { 0x07ff'fff2,0x07ff'fff1,0x07ff'fff0,0x07ff'ffef,0x07ff'ffee};
+	handler_address = handler;
 	return;
 }
 uint16_t DMA::read(uint32_t address)
@@ -53,6 +54,7 @@ void DMA::write(uint32_t address, uint16_t value)
 void DMA::tick()
 { 
 	uint16_t x;
+	enhancer.clear_interrupt(2);
 	if (count != 0)
 	{
 		x = Bus.read(src_address);
@@ -60,6 +62,10 @@ void DMA::tick()
 		src_address++;
 		dest_address++;
 		count--;
+		if (count - 1 == 0)
+		{
+			enhancer.raise_interrupt(2,handler_address);
+		}
 	}
 	
 }
