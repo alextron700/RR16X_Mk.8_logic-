@@ -72,19 +72,16 @@ int main()
     FP32Coprocessor FC;
 
    // std::cout << "[TRACER 7] Initializing DMA...\n";
-    DMA dma(myBus, IE);
+    DMA dma(myBus, IE, 0);
 
     //std::cout << "[TRACER 8] About to load program from: " << filePath << "\n";
     if (!myBus.loadProgram(filePath, 0x0000,true)) {
         std::cerr << "Failed to load program!" << std::endl;
         return 1;
     }
-    for (uint32_t addr = 0x7FF'0000; addr < 0x07ff'7fff; ++addr)
-    {
-        myBus.write(addr, 0x0000);
-    }
     //bus BUS = bus(0xFFFF * 0x0800);
-    CPU cpu = CPU();
+    CPU cpu = CPU(); 
+    //std::vector<uint16_t> test = {0x1088, 0x0000, 0x0000,0xB880, 0x0003, 0x1008, 0x0001,0xC108,0x000A,0xF000};
     uint32_t PC = cpu.getPC(true);
     std::cout << "Program load success!\n";
     // get the memory address at the program counter. If the instruction isn't halt
@@ -104,11 +101,8 @@ int main()
             {
                 AP->tick();
             }
-          // std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
-            if (trace)
-            {
-                cpu.dumpState();
-            }
+           std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
+           cpu.dumpState();
             cpu.step(myBus, int_signal, trace);
             PC = cpu.getPC(true);
             //cpu.dumpState();
