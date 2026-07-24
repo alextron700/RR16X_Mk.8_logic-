@@ -102,7 +102,10 @@ int main()
                 AP->tick();
             }
            std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
-           cpu.dumpState();
+           if (trace)
+            {
+            cpu.dumpState();
+            }
             cpu.step(myBus, int_signal, trace);
             PC = cpu.getPC(true);
             //cpu.dumpState();
