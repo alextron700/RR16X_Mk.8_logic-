@@ -87,29 +87,32 @@ int main()
     // get the memory address at the program counter. If the instruction isn't halt
     std::vector<AbstractPeripheral*> APList = { &timer,&dma,&uart,&IE,&multiplier,&WIC,&FC };
     myBus.initDevices(APList);
-    while (myBus.read(PC) < 0xF000)
-    {
-        //std::cerr << "LOOP: PC=" << std::hex << PC << std::endl;
-    
-        bool int_signal = IE.has_active_interrupt();
-            if(int_signal)
-            {
-                cpu.updateIVR(IE.get_highest_priority_vector());
-            }
+   while (myBus.read(PC) < 0xF000)
+{
+    //std::cerr << "LOOP: PC=" << std::hex << PC << std::endl;
+
+    bool int_signal = IE.has_active_interrupt();
+        if(int_signal)
+        {
+            cpu.updateIVR(IE.get_highest_priority_vector());
+        }
    
-            for (auto AP : APList)
-            {
-                AP->tick();
-            }
-           std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
+        for (auto AP : APList)
+        {
+            AP->tick();
+        }
+       std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
+       if (!dma.isRunning)
+       {
            if (trace)
-            {
-            cpu.dumpState();
-            }
-            cpu.step(myBus, int_signal, trace);
-            PC = cpu.getPC(true);
-            //cpu.dumpState();
-    }
+           {
+               cpu.dumpState();
+           }
+           cpu.step(myBus, int_signal, trace);
+       }
+        PC = cpu.getPC(true);
+        //cpu.dumpState();
+}
    // std::cerr << "LOOP EXIT: PC=" << std::hex << PC
    //     << " opcode=" << myBus.read(PC) << std::endl;
     return 0;
