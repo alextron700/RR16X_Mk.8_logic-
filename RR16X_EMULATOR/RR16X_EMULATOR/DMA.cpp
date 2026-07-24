@@ -57,6 +57,7 @@ void DMA::tick()
 	enhancer.clear_interrupt(2);
 	if (count != 0)
 	{
+		isRunning = true;
 		x = Bus.read(src_address);
 		Bus.write(dest_address,x);
 		src_address++;
@@ -66,6 +67,10 @@ void DMA::tick()
 		{
 			enhancer.raise_interrupt(2,handler_address);
 		}
+	}
+	if(count == 0)
+	{
+		isRunning = false;
 	}
 	
 }
