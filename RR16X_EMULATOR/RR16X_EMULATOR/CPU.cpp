@@ -253,6 +253,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 			break;
 		case 0x7:
 			A = true;
+			break;
 		case 0x8:
 			A = static_cast<int16_t>(X) < static_cast<int16_t>(Y);
 			break;
