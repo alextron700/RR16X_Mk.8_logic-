@@ -115,5 +115,7 @@ void UART::tick()
         {
             enhancer.raise_interrupt(UART_INTERRUPT_LINE, UART_VECTOR_ADDRESS);
         }
+    }else {
+    enhancer.clear_interrupt(UART_INTERRUPT_LINE);
     }
 }
