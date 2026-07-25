@@ -280,7 +280,19 @@ int process_high_level_compile(const char* line_buffer, FILE* output_file) {
     }
     return 0;
 }
+void normalize_memory_sugar(char* operand) {
+    if (!operand) return;
 
+    // Match M$[R1] style
+    if (strncmp(operand, "M$[", 3) == 0) {
+        size_t len = strlen(operand);
+        if (len >= 5 && operand[len - 1] == ']') {
+            // Extract inside: R1
+            memmove(operand, operand + 3, len - 3); // "R1]"
+            operand[len - 4] = '\0';                // "R1"
+        }
+    }
+}
 int main() {
     char file[256];
     char output_filename[256];
@@ -436,7 +448,9 @@ int main() {
         char* op1 = strtok(NULL, " ,\t");
         char* op2 = strtok(NULL, " ,\t");
         char* op3 = strtok(NULL, " ,\t");
-
+        normalize_memory_sugar(op1);
+        normalize_memory_sugar(op2);
+        normalize_memory_sugar(op3);
         compile_instruction_safe(op, op1, op2, op3, output_file, mnemonic);
     }
 
