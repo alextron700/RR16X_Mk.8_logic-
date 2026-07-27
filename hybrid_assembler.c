@@ -2,7 +2,14 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
-
+#include <time.h>
+#include <stdbool.h>
+#ifdef _WIN32
+#include<windows.h>
+#endif
+#ifdef linux 
+#include<unistd.h>
+#endif
 #define SHIFT_OPCODE  12
 #define SHIFT_M_FLAG  11
 #define SHIFT_REG_D      8
@@ -10,7 +17,12 @@
 #define SHIFT_REG_X     4
 #define MASK_LY       (1 << 3)
 #define MASK_REG_Y     0x0007
+#define BANK_SIZE 0x10000
 
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+#define MAX_INCLUDE_DEPTH 64
 typedef enum {
     TOKEN_MNEMONIC,
     TOKEN_REGISTER,
@@ -29,26 +41,58 @@ typedef enum {
     FMT_N_N_N,
     FMT_UNKOWN
 } InstForm;
+typedef struct {
+    char path[PATH_MAX];
+} IncludeEntry;
 
+IncludeEntry include_stack[MAX_INCLUDE_DEPTH];
+int include_depth = 0;
+int already_included(const char* file)
+{
+    for (int i = 0; i < include_depth; i++)
+    {
+        if (strcmp(include_stack[i].path, file) == 0)
+            return 1;
+    }
+
+    return 0;
+}
 typedef struct {
     char name[32];
     int reg_num;
 } Variable;
-
+typedef struct {
+    unsigned short bank;
+    unsigned short offset;
+} Address;
 typedef struct {
     char name[64];
-    unsigned short address;
+    Address address;
 } Label;
 
-Label label_table[256];
-int label_count = 0;
-
+Label *label_table = NULL;
+size_t label_capacity = 0;
+size_t label_count = 0;
+Address current_address = { 0, 0 };
 typedef struct {
     const char* mnemonic;
     unsigned short base_opcode;
     InstForm form;
 } Opcode_entry;
+void advance_address(unsigned int words)
+{
+    unsigned int full = current_address.offset + words;
 
+    current_address.bank += full >> 16;
+    current_address.offset = full & 0xFFFF;
+}
+
+
+unsigned int address_to_u32(Address addr)
+{
+    return ((unsigned int)addr.bank << 16) |
+        addr.offset;
+}
 Opcode_entry optable[] =
 {
     {"EAM.SET",   0x0000, FMT_N_R_N},
@@ -115,17 +159,31 @@ int parse_register(const char* token) {
     return -1;
 }
 
-unsigned short resolve_value(const char* token) {
-    if (!token || strlen(token) == 0) return 0;
+Address resolve_address(const char* token)
+{
+    Address empty = { 0,0 };
 
-    for (int i = 0; i < label_count; i++) {
-        if (strcmp(label_table[i].name, token) == 0) {
+    if (!token || strlen(token) == 0)
+        return empty;
+
+    for (size_t i = 0; i < label_count; i++)
+    {
+        if (strcmp(label_table[i].name, token) == 0)
             return label_table[i].address;
-        }
     }
-    return (unsigned short)strtol(token, NULL, 0);
-}
 
+
+    unsigned int value = strtoul(token, NULL, 0);
+
+    Address result;
+    result.bank = (value >> 16) & 0xFFFF;
+    result.offset = value & 0xFFFF;
+
+    return result;
+}
+bool needs_bank(Address addr) {
+	return addr.bank != 0;
+}
 int check_immediate_bank_extension(Opcode_entry* op, const char* o1, const char* o2, const char* o3) {
     const char* target_check = NULL;
     if (op->form == FMT_N_R_N)      target_check = o1;
@@ -133,9 +191,14 @@ int check_immediate_bank_extension(Opcode_entry* op, const char* o1, const char*
     else if (op->form == FMT_R_N_R) target_check = o2;
 
     if (target_check) {
-        if (strncmp(target_check, "0x", 2) == 0 || strncmp(target_check, "0X", 2) == 0) {
+        if (strncmp(target_check, "0x", 2) == 0 || strncmp(target_check, "0X", 2) == 0) 
+        {
             unsigned long full_addr = strtoul(target_check, NULL, 16);
-            if (full_addr > 0xFFFF) return 2;
+            Address candidate;
+            candidate.bank = (full_addr >> 16) & 0x7FF;
+            candidate.offset = full_addr & 0xFFFF;
+            if (needs_bank(candidate)) return 2;
+
         }
     }
     return 0;
@@ -196,7 +259,7 @@ void compile_instruction_safe(Opcode_entry* op, char* op1, char* op2, char* op3,
             int reg_x = parse_register(target_op);
             if (reg_x == -1) {
                 machine_word |= MASK_LX;
-                immediate_queue[immediate_count++] = resolve_value(target_op);
+                immediate_queue[immediate_count++] = resolve_address(target_op).offset;
             }
             else {
                 machine_word |= (reg_x << SHIFT_REG_X);
@@ -211,7 +274,7 @@ void compile_instruction_safe(Opcode_entry* op, char* op1, char* op2, char* op3,
             int reg_y = parse_register(target_op3);
             if (reg_y == -1) {
                 machine_word |= MASK_LY;
-                immediate_queue[immediate_count++] = (resolve_value(target_op3) & 0xFFFF);
+                immediate_queue[immediate_count++] = resolve_address(target_op3).offset;
             }
             else {
                 machine_word |= (reg_y & MASK_REG_Y);
@@ -293,7 +356,99 @@ void normalize_memory_sugar(char* operand) {
         }
     }
 }
-int main() {
+void expand_includes(FILE* input, FILE* output, const char* path) {
+	char line[256];
+	if (already_included(path)) {
+		fprintf(stderr, "Error: Includes may not include themselves! '%s'.\n", path);
+		#ifdef _WIN32
+			Sleep(5000);
+        #else
+            sleep(5);
+        #endif
+		exit(1);
+	}
+    if (include_depth >= MAX_INCLUDE_DEPTH) {
+        fprintf(stderr, "Error: Maximum include depth (%d) exceeded at '%s'.\n", MAX_INCLUDE_DEPTH, path);
+        #ifdef _WIN32
+            Sleep(5000);
+        #else
+            sleep(5);
+        #endif
+        exit(1);
+    }
+
+    strncpy(include_stack[include_depth].path, path, PATH_MAX - 1);
+    include_stack[include_depth].path[PATH_MAX - 1] = '\0';
+    include_depth++;
+	while (fgets(line, sizeof(line), input)) {
+		char* cursor = line;
+		while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
+		if (strncmp(cursor, ".include", 8) == 0) {
+			char include_file[256];
+			if (sscanf(cursor, ".include \"%255[^\"]\"", include_file) == 1) {
+				FILE* inc_file = fopen(include_file, "r");
+				if (inc_file) {
+					expand_includes(inc_file, output, include_file);
+					fclose(inc_file);
+				}
+				else {
+					fprintf(stderr, "Error: Could not open include file '%s'.\n", include_file);
+                    #ifdef _WIN32
+                        Sleep(5000);
+                    #else
+                        sleep(5);
+                    #endif 
+					exit(1);
+				}
+			}
+		}
+		else {
+			fputs(line, output);
+		}
+	}
+}
+void add_label(const char* name, Address address)
+{
+    if (label_count >= label_capacity)
+    {
+        size_t new_capacity =
+            label_capacity == 0 ? 64 : label_capacity * 2;
+
+
+        Label* new_table =
+            realloc(label_table,
+                new_capacity * sizeof(Label));
+
+
+        if (!new_table)
+        {
+            fprintf(stderr,
+                "Out of memory adding label\n");
+            exit(1);
+        }
+
+
+        label_table = new_table;
+        label_capacity = new_capacity;
+    }
+
+
+    strncpy(label_table[label_count].name,
+        name,
+        sizeof(label_table[label_count].name) - 1);
+
+
+    label_table[label_count]
+        .name[sizeof(label_table[label_count].name) - 1] = '\0';
+
+
+    label_table[label_count].address = address;
+
+
+    label_count++;
+}
+int main() 
+{
     char file[256];
     char output_filename[256];
 
@@ -309,10 +464,32 @@ int main() {
     FILE* source_file = fopen(file, "r");
     if (!source_file) {
         fprintf(stderr, "Error: Could not open source file '%s'.\n", file);
+        #ifdef _WIN32
+          Sleep(5000);
+        #else
+          sleep(5);
+        #endif
         return 1;
     }
+	FILE* expanded_file = tmpfile();
+	if (!expanded_file) {
+		fprintf(stderr, "Error: Could not create temporary file for includes.\n");
+        #ifdef _WIN32
+          Sleep(5000);
+        #else
+          sleep(5);
+        #endif
+		fclose(source_file);
+		return 1;
+    }
+
+	expand_includes(source_file, expanded_file, file);
+    fclose(source_file);
+    rewind(expanded_file);
+	source_file = expanded_file;
     char line[256];
-    unsigned short current_hardware_address = 0;
+    current_address.bank = 0;
+    current_address.offset = 0;
 
     while (fgets(line, sizeof(line), source_file)) {
         char* cursor = line;
@@ -323,9 +500,7 @@ int main() {
         if (strchr(cursor, ':') != NULL) {
             char func_name[64];
             sscanf(cursor, "%[^:]", func_name);
-            strcpy(label_table[label_count].name, func_name);
-            label_table[label_count].address = current_hardware_address;
-            label_count++;
+            add_label(func_name, current_address);
             continue;
         }
 
@@ -333,12 +508,12 @@ int main() {
 
         if (strncmp(cursor, "call ", 5) == 0) {
             instruction_words = 2;
-            current_hardware_address += instruction_words;
+            advance_address(instruction_words);
             continue;
         }
         else if (strncmp(cursor, "print", 5) == 0) {
             instruction_words = 6;
-            current_hardware_address += instruction_words;
+            advance_address(instruction_words);
             continue;
         }
         else if (strchr(cursor, '=') != NULL) {
@@ -358,7 +533,7 @@ int main() {
                     if (parse_register(arg1) == -1) instruction_words++; // ADD's immediate operand
                 }
             }
-            current_hardware_address += instruction_words;
+            advance_address(instruction_words);
             continue;
         }
         else {
@@ -390,17 +565,21 @@ int main() {
                 }
             }
         }
-        current_hardware_address += instruction_words;
+        advance_address(instruction_words);
     }
-    fclose(source_file);
+    // NOTE: do NOT fclose(source_file) here - source_file == expanded_file,
+    // and it's needed again for Pass 2. Just rewind it below.
 
     // =========================================================================
     // PASS 2: GENERATE MACHINE HEX CODES
     // =========================================================================
-    source_file = fopen(file, "r");
+    current_address.bank = 0;
+    current_address.offset = 0;
+    rewind(expanded_file);
+    source_file = expanded_file;
     FILE* output_file = fopen(output_filename, "w");
     if (!output_file) {
-        fclose(source_file);
+        fclose(expanded_file);
         return 1;
     }
 
@@ -415,15 +594,15 @@ int main() {
         if (strncmp(cursor, "call ", 5) == 0) {
             char target_func[64];
             if (sscanf(cursor, "call %s", target_func) == 1) {
-                int target_address = -1;
-                for (int i = 0; i < label_count; i++) {
+               unsigned int target_address = 0xFFFFFFFF;
+                for (size_t i = 0; i < label_count; i++) {
                     if (strcmp(label_table[i].name, target_func) == 0) {
-                        target_address = label_table[i].address;
+                        target_address = address_to_u32(label_table[i].address);;
                         break;
                     }
                 }
-                if (target_address != -1) {
-                    char addr_str[16]; sprintf(addr_str, "0x%04X", target_address);
+                if (target_address != 0xFFFFFFFF) {
+                    char addr_str[32]; sprintf(addr_str, "0x%08X", target_address);
                     Opcode_entry* cal_op = lookup_opcode("CAL");
                     compile_instruction_safe(cal_op, addr_str, NULL, NULL, output_file, "CAL");
                     continue;
@@ -454,13 +633,13 @@ int main() {
         compile_instruction_safe(op, op1, op2, op3, output_file, mnemonic);
     }
 
-    fclose(source_file);
+    fclose(expanded_file); // source_file == expanded_file here; closing once is sufficient
     fclose(output_file);
     printf("\nSuccess! Saved to '%s'\n", output_filename);
     printf("The resolved addresses of labels may be useful, so here they are:\n");
-    for (int i = 0; i < label_count; i++)
+    for (size_t i = 0; i < label_count; i++)
     {
-        printf("%s is at %04x\n", label_table[i].name, label_table[i].address);
+        printf("%s is at %04x:%04x\n", label_table[i].name, label_table[i].address.bank, label_table[i].address.offset);
     }
     printf("Type 'exit' then press enter to exit\n");
     char waitForClose[64];
