@@ -30,7 +30,7 @@ typedef enum {
     TOKEN_COMMA,
     TOKEN_NEWLINE,
     TOKEN_EOF
-} TokenType;
+} AsmTokenType;
 
 typedef enum {
     FMT_R_R_R,
@@ -70,7 +70,7 @@ typedef struct {
     Address address;
 } Label;
 
-Label *label_table = NULL;
+Label* label_table = NULL;
 size_t label_capacity = 0;
 size_t label_count = 0;
 Address current_address = { 0, 0 };
@@ -182,7 +182,7 @@ Address resolve_address(const char* token)
     return result;
 }
 bool needs_bank(Address addr) {
-	return addr.bank != 0;
+    return addr.bank != 0;
 }
 int check_immediate_bank_extension(Opcode_entry* op, const char* o1, const char* o2, const char* o3) {
     const char* target_check = NULL;
@@ -191,7 +191,7 @@ int check_immediate_bank_extension(Opcode_entry* op, const char* o1, const char*
     else if (op->form == FMT_R_N_R) target_check = o2;
 
     if (target_check) {
-        if (strncmp(target_check, "0x", 2) == 0 || strncmp(target_check, "0X", 2) == 0) 
+        if (strncmp(target_check, "0x", 2) == 0 || strncmp(target_check, "0X", 2) == 0)
         {
             unsigned long full_addr = strtoul(target_check, NULL, 16);
             Address candidate;
@@ -357,55 +357,55 @@ void normalize_memory_sugar(char* operand) {
     }
 }
 void expand_includes(FILE* input, FILE* output, const char* path) {
-	char line[256];
-	if (already_included(path)) {
-		fprintf(stderr, "Error: Includes may not include themselves! '%s'.\n", path);
-		#ifdef _WIN32
-			Sleep(5000);
-        #else
-            sleep(5);
-        #endif
-		exit(1);
-	}
+    char line[256];
+    if (already_included(path)) {
+        fprintf(stderr, "Error: Includes may not include themselves! '%s'.\n", path);
+#ifdef _WIN32
+        Sleep(5000);
+#else
+        sleep(5);
+#endif
+        exit(1);
+    }
     if (include_depth >= MAX_INCLUDE_DEPTH) {
         fprintf(stderr, "Error: Maximum include depth (%d) exceeded at '%s'.\n", MAX_INCLUDE_DEPTH, path);
-        #ifdef _WIN32
-            Sleep(5000);
-        #else
-            sleep(5);
-        #endif
+#ifdef _WIN32
+        Sleep(5000);
+#else
+        sleep(5);
+#endif
         exit(1);
     }
 
     strncpy(include_stack[include_depth].path, path, PATH_MAX - 1);
     include_stack[include_depth].path[PATH_MAX - 1] = '\0';
     include_depth++;
-	while (fgets(line, sizeof(line), input)) {
-		char* cursor = line;
-		while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
-		if (strncmp(cursor, ".include", 8) == 0) {
-			char include_file[256];
-			if (sscanf(cursor, ".include \"%255[^\"]\"", include_file) == 1) {
-				FILE* inc_file = fopen(include_file, "r");
-				if (inc_file) {
-					expand_includes(inc_file, output, include_file);
-					fclose(inc_file);
-				}
-				else {
-					fprintf(stderr, "Error: Could not open include file '%s'.\n", include_file);
-                    #ifdef _WIN32
-                        Sleep(5000);
-                    #else
-                        sleep(5);
-                    #endif 
-					exit(1);
-				}
-			}
-		}
-		else {
-			fputs(line, output);
-		}
-	}
+    while (fgets(line, sizeof(line), input)) {
+        char* cursor = line;
+        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
+        if (strncmp(cursor, ".include", 8) == 0) {
+            char include_file[256];
+            if (sscanf(cursor, ".include \"%255[^\"]\"", include_file) == 1) {
+                FILE* inc_file = fopen(include_file, "r");
+                if (inc_file) {
+                    expand_includes(inc_file, output, include_file);
+                    fclose(inc_file);
+                }
+                else {
+                    fprintf(stderr, "Error: Could not open include file '%s'.\n", include_file);
+#ifdef _WIN32
+                    Sleep(5000);
+#else
+                    sleep(5);
+#endif 
+                    exit(1);
+                }
+            }
+        }
+        else {
+            fputs(line, output);
+        }
+    }
 }
 void add_label(const char* name, Address address)
 {
@@ -447,7 +447,7 @@ void add_label(const char* name, Address address)
 
     label_count++;
 }
-int main() 
+int main()
 {
     char file[256];
     char output_filename[256];
@@ -464,29 +464,29 @@ int main()
     FILE* source_file = fopen(file, "r");
     if (!source_file) {
         fprintf(stderr, "Error: Could not open source file '%s'.\n", file);
-        #ifdef _WIN32
-          Sleep(5000);
-        #else
-          sleep(5);
-        #endif
+#ifdef _WIN32
+        Sleep(5000);
+#else
+        sleep(5);
+#endif
         return 1;
     }
-	FILE* expanded_file = tmpfile();
-	if (!expanded_file) {
-		fprintf(stderr, "Error: Could not create temporary file for includes.\n");
-        #ifdef _WIN32
-          Sleep(5000);
-        #else
-          sleep(5);
-        #endif
-		fclose(source_file);
-		return 1;
+    FILE* expanded_file = tmpfile();
+    if (!expanded_file) {
+        fprintf(stderr, "Error: Could not create temporary file for includes.\n");
+#ifdef _WIN32
+        Sleep(5000);
+#else
+        sleep(5);
+#endif
+        fclose(source_file);
+        return 1;
     }
 
-	expand_includes(source_file, expanded_file, file);
+    expand_includes(source_file, expanded_file, file);
     fclose(source_file);
     rewind(expanded_file);
-	source_file = expanded_file;
+    source_file = expanded_file;
     char line[256];
     current_address.bank = 0;
     current_address.offset = 0;
@@ -594,7 +594,7 @@ int main()
         if (strncmp(cursor, "call ", 5) == 0) {
             char target_func[64];
             if (sscanf(cursor, "call %s", target_func) == 1) {
-               unsigned int target_address = 0xFFFFFFFF;
+                unsigned int target_address = 0xFFFFFFFF;
                 for (size_t i = 0; i < label_count; i++) {
                     if (strcmp(label_table[i].name, target_func) == 0) {
                         target_address = address_to_u32(label_table[i].address);;
