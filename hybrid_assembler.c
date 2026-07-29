@@ -30,7 +30,7 @@ typedef enum {
     TOKEN_COMMA,
     TOKEN_NEWLINE,
     TOKEN_EOF
-} TokenType;
+} ATokenType;
 
 typedef enum {
     FMT_R_R_R,
@@ -70,7 +70,7 @@ typedef struct {
     Address address;
 } Label;
 
-Label *label_table = NULL;
+Label* label_table = NULL;
 size_t label_capacity = 0;
 size_t label_count = 0;
 Address current_address = { 0, 0 };
@@ -182,24 +182,40 @@ Address resolve_address(const char* token)
     return result;
 }
 bool needs_bank(Address addr) {
-	return addr.bank != 0;
+    return addr.bank != 0;
 }
+
+// These mirror EXACTLY which operand compile_instruction_safe's FIELD2/FIELD3
+// logic treats as the immediate-or-register slot for each instruction form.
+// Bank-extension detection MUST use these instead of hardcoded per-form guesses,
+// or it can silently disagree with the actual encoding.
+const char* field2_slot(InstForm form, const char* op1, const char* op2, const char* op3) {
+    (void)op3;
+    if (form == FMT_N_R_N || form == FMT_N_R_R) return op1;
+    if (form == FMT_R_R_R || form == FMT_R_R_N || form == FMT_R_N_R) return op2;
+    return NULL;
+}
+const char* field3_slot(InstForm form, const char* op1, const char* op2, const char* op3) {
+    (void)op1;
+    if (form == FMT_N_R_R) return op2;
+    if (form == FMT_R_R_R || form == FMT_R_N_R || form == FMT_R_R_N) return op3;
+    return NULL;
+}
+
 int check_immediate_bank_extension(Opcode_entry* op, const char* o1, const char* o2, const char* o3) {
+    const char* f2 = field2_slot(op->form, o1, o2, o3);
+    const char* f3 = field3_slot(op->form, o1, o2, o3);
     const char* target_check = NULL;
-    if (op->form == FMT_N_R_N)      target_check = o1;
-    else if (op->form == FMT_R_R_N) target_check = o3;
-    else if (op->form == FMT_R_N_R) target_check = o2;
+
+    if (f2 && (strncmp(f2, "0x", 2) == 0 || strncmp(f2, "0X", 2) == 0)) target_check = f2;
+    else if (f3 && (strncmp(f3, "0x", 2) == 0 || strncmp(f3, "0X", 2) == 0)) target_check = f3;
 
     if (target_check) {
-        if (strncmp(target_check, "0x", 2) == 0 || strncmp(target_check, "0X", 2) == 0) 
-        {
-            unsigned long full_addr = strtoul(target_check, NULL, 16);
-            Address candidate;
-            candidate.bank = (full_addr >> 16) & 0x7FF;
-            candidate.offset = full_addr & 0xFFFF;
-            if (needs_bank(candidate)) return 2;
-
-        }
+        unsigned long full_addr = strtoul(target_check, NULL, 16);
+        Address candidate;
+        candidate.bank = (full_addr >> 16) & 0x7FF;
+        candidate.offset = full_addr & 0xFFFF;
+        if (needs_bank(candidate)) return 2;
     }
     return 0;
 }
@@ -211,13 +227,15 @@ void compile_instruction_safe(Opcode_entry* op, char* op1, char* op2, char* op3,
     char clean_op_buffer[64];
     int defer_bank_reset = 0;
 
-    if (op->form == FMT_R_N_R || op->form == FMT_R_R_N || op->form == FMT_N_R_N) {
+    {
+        const char* f2 = field2_slot(op->form, op1, op2, op3);
+        const char* f3 = field3_slot(op->form, op1, op2, op3);
         char* target_check = NULL;
-        if (op->form == FMT_N_R_N)      target_check = op1;
-        else if (op->form == FMT_R_R_N) target_check = op3;
-        else                            target_check = op2;
 
-        if (target_check && (strncmp(target_check, "0x", 2) == 0 || strncmp(target_check, "0X", 2) == 0)) {
+        if (f2 && (strncmp(f2, "0x", 2) == 0 || strncmp(f2, "0X", 2) == 0)) target_check = (char*)f2;
+        else if (f3 && (strncmp(f3, "0x", 2) == 0 || strncmp(f3, "0X", 2) == 0)) target_check = (char*)f3;
+
+        if (target_check) {
             unsigned long full_addr = strtoul(target_check, NULL, 16);
 
             if (full_addr > 0xFFFF) {
@@ -229,9 +247,12 @@ void compile_instruction_safe(Opcode_entry* op, char* op1, char* op2, char* op3,
                 compile_instruction_safe(eam_op, bank_str, NULL, NULL, output_file, "EAM.SET");
 
                 sprintf(clean_op_buffer, "0x%04X", (unsigned short)(full_addr & 0xFFFF));
-                if (op->form == FMT_N_R_N)      op1 = clean_op_buffer;
-                else if (op->form == FMT_R_R_N) op3 = clean_op_buffer;
-                else                            op2 = clean_op_buffer;
+                // target_check is a direct alias of whichever of op1/op2/op3 matched
+                // (field2_slot/field3_slot return the pointer itself, not a copy),
+                // so identity comparison tells us which one to rewrite.
+                if (target_check == op1) op1 = clean_op_buffer;
+                else if (target_check == op2) op2 = clean_op_buffer;
+                else if (target_check == op3) op3 = clean_op_buffer;
 
                 defer_bank_reset = 1;
             }
@@ -357,55 +378,55 @@ void normalize_memory_sugar(char* operand) {
     }
 }
 void expand_includes(FILE* input, FILE* output, const char* path) {
-	char line[256];
-	if (already_included(path)) {
-		fprintf(stderr, "Error: Includes may not include themselves! '%s'.\n", path);
-		#ifdef _WIN32
-			Sleep(5000);
-        #else
-            sleep(5);
-        #endif
-		exit(1);
-	}
+    char line[256];
+    if (already_included(path)) {
+        fprintf(stderr, "Error: Includes may not include themselves! '%s'.\n", path);
+#ifdef _WIN32
+        Sleep(5000);
+#else
+        sleep(5);
+#endif
+        exit(1);
+    }
     if (include_depth >= MAX_INCLUDE_DEPTH) {
         fprintf(stderr, "Error: Maximum include depth (%d) exceeded at '%s'.\n", MAX_INCLUDE_DEPTH, path);
-        #ifdef _WIN32
-            Sleep(5000);
-        #else
-            sleep(5);
-        #endif
+#ifdef _WIN32
+        Sleep(5000);
+#else
+        sleep(5);
+#endif
         exit(1);
     }
 
     strncpy(include_stack[include_depth].path, path, PATH_MAX - 1);
     include_stack[include_depth].path[PATH_MAX - 1] = '\0';
     include_depth++;
-	while (fgets(line, sizeof(line), input)) {
-		char* cursor = line;
-		while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
-		if (strncmp(cursor, ".include", 8) == 0) {
-			char include_file[256];
-			if (sscanf(cursor, ".include \"%255[^\"]\"", include_file) == 1) {
-				FILE* inc_file = fopen(include_file, "r");
-				if (inc_file) {
-					expand_includes(inc_file, output, include_file);
-					fclose(inc_file);
-				}
-				else {
-					fprintf(stderr, "Error: Could not open include file '%s'.\n", include_file);
-                    #ifdef _WIN32
-                        Sleep(5000);
-                    #else
-                        sleep(5);
-                    #endif 
-					exit(1);
-				}
-			}
-		}
-		else {
-			fputs(line, output);
-		}
-	}
+    while (fgets(line, sizeof(line), input)) {
+        char* cursor = line;
+        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
+        if (strncmp(cursor, ".include", 8) == 0) {
+            char include_file[256];
+            if (sscanf(cursor, ".include \"%255[^\"]\"", include_file) == 1) {
+                FILE* inc_file = fopen(include_file, "r");
+                if (inc_file) {
+                    expand_includes(inc_file, output, include_file);
+                    fclose(inc_file);
+                }
+                else {
+                    fprintf(stderr, "Error: Could not open include file '%s'.\n", include_file);
+#ifdef _WIN32
+                    Sleep(5000);
+#else
+                    sleep(5);
+#endif 
+                    exit(1);
+                }
+            }
+        }
+        else {
+            fputs(line, output);
+        }
+    }
 }
 void add_label(const char* name, Address address)
 {
@@ -447,7 +468,7 @@ void add_label(const char* name, Address address)
 
     label_count++;
 }
-int main() 
+int main()
 {
     char file[256];
     char output_filename[256];
@@ -464,29 +485,29 @@ int main()
     FILE* source_file = fopen(file, "r");
     if (!source_file) {
         fprintf(stderr, "Error: Could not open source file '%s'.\n", file);
-        #ifdef _WIN32
-          Sleep(5000);
-        #else
-          sleep(5);
-        #endif
+#ifdef _WIN32
+        Sleep(5000);
+#else
+        sleep(5);
+#endif
         return 1;
     }
-	FILE* expanded_file = tmpfile();
-	if (!expanded_file) {
-		fprintf(stderr, "Error: Could not create temporary file for includes.\n");
-        #ifdef _WIN32
-          Sleep(5000);
-        #else
-          sleep(5);
-        #endif
-		fclose(source_file);
-		return 1;
+    FILE* expanded_file = tmpfile();
+    if (!expanded_file) {
+        fprintf(stderr, "Error: Could not create temporary file for includes.\n");
+#ifdef _WIN32
+        Sleep(5000);
+#else
+        sleep(5);
+#endif
+        fclose(source_file);
+        return 1;
     }
 
-	expand_includes(source_file, expanded_file, file);
+    expand_includes(source_file, expanded_file, file);
     fclose(source_file);
     rewind(expanded_file);
-	source_file = expanded_file;
+    source_file = expanded_file;
     char line[256];
     current_address.bank = 0;
     current_address.offset = 0;
@@ -650,7 +671,7 @@ int main()
         if (strncmp(cursor, "call ", 5) == 0) {
             char target_func[64];
             if (sscanf(cursor, "call %s", target_func) == 1) {
-               unsigned int target_address = 0xFFFFFFFF;
+                unsigned int target_address = 0xFFFFFFFF;
                 for (size_t i = 0; i < label_count; i++) {
                     if (strcmp(label_table[i].name, target_func) == 0) {
                         target_address = address_to_u32(label_table[i].address);;
