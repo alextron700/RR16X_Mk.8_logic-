@@ -30,7 +30,7 @@ typedef enum {
     TOKEN_COMMA,
     TOKEN_NEWLINE,
     TOKEN_EOF
-} AsmTokenType;
+} TokenType;
 
 typedef enum {
     FMT_R_R_R,
@@ -70,7 +70,7 @@ typedef struct {
     Address address;
 } Label;
 
-Label* label_table = NULL;
+Label *label_table = NULL;
 size_t label_capacity = 0;
 size_t label_count = 0;
 Address current_address = { 0, 0 };
@@ -182,7 +182,7 @@ Address resolve_address(const char* token)
     return result;
 }
 bool needs_bank(Address addr) {
-    return addr.bank != 0;
+	return addr.bank != 0;
 }
 int check_immediate_bank_extension(Opcode_entry* op, const char* o1, const char* o2, const char* o3) {
     const char* target_check = NULL;
@@ -191,7 +191,7 @@ int check_immediate_bank_extension(Opcode_entry* op, const char* o1, const char*
     else if (op->form == FMT_R_N_R) target_check = o2;
 
     if (target_check) {
-        if (strncmp(target_check, "0x", 2) == 0 || strncmp(target_check, "0X", 2) == 0)
+        if (strncmp(target_check, "0x", 2) == 0 || strncmp(target_check, "0X", 2) == 0) 
         {
             unsigned long full_addr = strtoul(target_check, NULL, 16);
             Address candidate;
@@ -357,55 +357,55 @@ void normalize_memory_sugar(char* operand) {
     }
 }
 void expand_includes(FILE* input, FILE* output, const char* path) {
-    char line[256];
-    if (already_included(path)) {
-        fprintf(stderr, "Error: Includes may not include themselves! '%s'.\n", path);
-#ifdef _WIN32
-        Sleep(5000);
-#else
-        sleep(5);
-#endif
-        exit(1);
-    }
+	char line[256];
+	if (already_included(path)) {
+		fprintf(stderr, "Error: Includes may not include themselves! '%s'.\n", path);
+		#ifdef _WIN32
+			Sleep(5000);
+        #else
+            sleep(5);
+        #endif
+		exit(1);
+	}
     if (include_depth >= MAX_INCLUDE_DEPTH) {
         fprintf(stderr, "Error: Maximum include depth (%d) exceeded at '%s'.\n", MAX_INCLUDE_DEPTH, path);
-#ifdef _WIN32
-        Sleep(5000);
-#else
-        sleep(5);
-#endif
+        #ifdef _WIN32
+            Sleep(5000);
+        #else
+            sleep(5);
+        #endif
         exit(1);
     }
 
     strncpy(include_stack[include_depth].path, path, PATH_MAX - 1);
     include_stack[include_depth].path[PATH_MAX - 1] = '\0';
     include_depth++;
-    while (fgets(line, sizeof(line), input)) {
-        char* cursor = line;
-        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
-        if (strncmp(cursor, ".include", 8) == 0) {
-            char include_file[256];
-            if (sscanf(cursor, ".include \"%255[^\"]\"", include_file) == 1) {
-                FILE* inc_file = fopen(include_file, "r");
-                if (inc_file) {
-                    expand_includes(inc_file, output, include_file);
-                    fclose(inc_file);
-                }
-                else {
-                    fprintf(stderr, "Error: Could not open include file '%s'.\n", include_file);
-#ifdef _WIN32
-                    Sleep(5000);
-#else
-                    sleep(5);
-#endif 
-                    exit(1);
-                }
-            }
-        }
-        else {
-            fputs(line, output);
-        }
-    }
+	while (fgets(line, sizeof(line), input)) {
+		char* cursor = line;
+		while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
+		if (strncmp(cursor, ".include", 8) == 0) {
+			char include_file[256];
+			if (sscanf(cursor, ".include \"%255[^\"]\"", include_file) == 1) {
+				FILE* inc_file = fopen(include_file, "r");
+				if (inc_file) {
+					expand_includes(inc_file, output, include_file);
+					fclose(inc_file);
+				}
+				else {
+					fprintf(stderr, "Error: Could not open include file '%s'.\n", include_file);
+                    #ifdef _WIN32
+                        Sleep(5000);
+                    #else
+                        sleep(5);
+                    #endif 
+					exit(1);
+				}
+			}
+		}
+		else {
+			fputs(line, output);
+		}
+	}
 }
 void add_label(const char* name, Address address)
 {
@@ -447,7 +447,7 @@ void add_label(const char* name, Address address)
 
     label_count++;
 }
-int main()
+int main() 
 {
     char file[256];
     char output_filename[256];
@@ -464,36 +464,43 @@ int main()
     FILE* source_file = fopen(file, "r");
     if (!source_file) {
         fprintf(stderr, "Error: Could not open source file '%s'.\n", file);
-#ifdef _WIN32
-        Sleep(5000);
-#else
-        sleep(5);
-#endif
+        #ifdef _WIN32
+          Sleep(5000);
+        #else
+          sleep(5);
+        #endif
         return 1;
     }
-    FILE* expanded_file = tmpfile();
-    if (!expanded_file) {
-        fprintf(stderr, "Error: Could not create temporary file for includes.\n");
-#ifdef _WIN32
-        Sleep(5000);
-#else
-        sleep(5);
-#endif
-        fclose(source_file);
-        return 1;
+	FILE* expanded_file = tmpfile();
+	if (!expanded_file) {
+		fprintf(stderr, "Error: Could not create temporary file for includes.\n");
+        #ifdef _WIN32
+          Sleep(5000);
+        #else
+          sleep(5);
+        #endif
+		fclose(source_file);
+		return 1;
     }
 
-    expand_includes(source_file, expanded_file, file);
+	expand_includes(source_file, expanded_file, file);
     fclose(source_file);
     rewind(expanded_file);
-    source_file = expanded_file;
+	source_file = expanded_file;
     char line[256];
     current_address.bank = 0;
     current_address.offset = 0;
 
+    int stj_pending = 0;
+    int stj_pending_line = 0;
+    char stj_pending_text[256] = { 0 };
+    int line_number = 0;
+
     while (fgets(line, sizeof(line), source_file)) {
+        line_number++;
         char* cursor = line;
         while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
+        cursor[strcspn(cursor, "\r\n")] = 0;
 
         if (strlen(cursor) == 0 || cursor[0] == ';' || cursor[0] == '#') continue;
 
@@ -501,12 +508,24 @@ int main()
             char func_name[64];
             sscanf(cursor, "%[^:]", func_name);
             add_label(func_name, current_address);
+            if (stj_pending) {
+                fprintf(stderr,
+                    "Warning: label at line %d follows 'STJ' at line %d (\"%s\") with no intervening conditional jump.\n"
+                    "         The stored branch target may be dangling or unintentionally reused.\n",
+                    line_number, stj_pending_line, stj_pending_text);
+            }
             continue;
         }
 
         int instruction_words = 0;
 
         if (strncmp(cursor, "call ", 5) == 0) {
+            if (stj_pending) {
+                fprintf(stderr,
+                    "Warning: 'call' at line %d intervenes before the 'STJ' at line %d (\"%s\") is consumed by a conditional jump.\n"
+                    "         The stored branch target may be clobbered by the callee.\n",
+                    line_number, stj_pending_line, stj_pending_text);
+            }
             instruction_words = 2;
             advance_address(instruction_words);
             continue;
@@ -544,13 +563,50 @@ int main()
             char* o2 = strtok(NULL, " ,\t");
             char* o3 = strtok(NULL, " ,\t");
 
+            if (mnemonic) {
+                // Strip trailing newline for clean warning text / mnemonic comparisons
+                char clean_line[256];
+                strncpy(clean_line, cursor, sizeof(clean_line) - 1);
+                clean_line[sizeof(clean_line) - 1] = '\0';
+                clean_line[strcspn(clean_line, "\r\n")] = '\0';
+
+                if (strcmp(mnemonic, "STJ") == 0) {
+                    if (stj_pending) {
+                        fprintf(stderr,
+                            "Warning: 'STJ' at line %d overwrites a still-pending 'STJ' from line %d (\"%s\") that was never consumed by a conditional jump.\n",
+                            line_number, stj_pending_line, stj_pending_text);
+                    }
+                    stj_pending = 1;
+                    stj_pending_line = line_number;
+                    strncpy(stj_pending_text, clean_line, sizeof(stj_pending_text) - 1);
+                    stj_pending_text[sizeof(stj_pending_text) - 1] = '\0';
+                }
+                else if (mnemonic[0] == 'J') {
+                    // Any conditional/unconditional jump (JLT, JEQ, ..., JMP, and .U/.E/.UE variants)
+                    // consumes the pending stored branch target.
+                    stj_pending = 0;
+                }
+                else if (strcmp(mnemonic, "RET") == 0 || strcmp(mnemonic, "HLT") == 0) {
+                    if (stj_pending) {
+                        fprintf(stderr,
+                            "Warning: '%s' at line %d follows 'STJ' at line %d (\"%s\") with no intervening conditional jump.\n"
+                            "         The stored branch target is being abandoned.\n",
+                            mnemonic, line_number, stj_pending_line, stj_pending_text);
+                    }
+                }
+            }
+
             Opcode_entry* op = lookup_opcode(mnemonic);
             if (op) {
                 instruction_words += check_immediate_bank_extension(op, o1, o2, o3);
 
-                if (op->form == FMT_R_R_N) {
+                if (op->form == FMT_R_R_R) {
+                    if (o2 && parse_register(o2) == -1) instruction_words++;
                     if (o3 && parse_register(o3) == -1) instruction_words++;
-                    else if (!o3 && o2 && parse_register(o2) == -1) instruction_words++;
+                }
+                else if (op->form == FMT_R_R_N) {
+                    if (o2 && parse_register(o2) == -1) instruction_words++;
+                    if (o3 && parse_register(o3) == -1) instruction_words++;
                 }
                 else if (op->form == FMT_R_N_R) {
                     if (o2 && parse_register(o2) == -1) instruction_words++;
@@ -594,7 +650,7 @@ int main()
         if (strncmp(cursor, "call ", 5) == 0) {
             char target_func[64];
             if (sscanf(cursor, "call %s", target_func) == 1) {
-                unsigned int target_address = 0xFFFFFFFF;
+               unsigned int target_address = 0xFFFFFFFF;
                 for (size_t i = 0; i < label_count; i++) {
                     if (strcmp(label_table[i].name, target_func) == 0) {
                         target_address = address_to_u32(label_table[i].address);;
