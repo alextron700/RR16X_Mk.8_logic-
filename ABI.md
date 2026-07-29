@@ -12,7 +12,7 @@
  ```
 ## Instruction calling convention
 
-- **Caller-saves:** All `R0`–`R7` are caller-saved. ( though calle may save instead. I'd just important that SOMEONE save it)
+- **Caller-saves:** All `R0`–`R7` are caller-saved. ( though calle may save instead. It is just important that SOMEONE save it)
 - **No hardware stack:** Calls use `CAL`/`RET`; any stack discipline is purely software-defined.
 - **Subroutine call:**
   - `call label` → assembler expands to `CAL imm16` (with bank handling if needed).
