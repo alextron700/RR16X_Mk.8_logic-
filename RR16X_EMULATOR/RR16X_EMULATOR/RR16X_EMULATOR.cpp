@@ -20,7 +20,7 @@
 int main()
 {
     std::string filePath;
-    std::cout << "Enter program file path: ";
+      std::cout << "Enter program file path: (Must have formatted hex values, you can generate one with hybrid_assembler.c) ACCEPTS: .txt, .bin, .hex: \n";
     std::cin >> std::ws;
     std::getline(std::cin, filePath);
     //std::cout << "Looking for files in: " << std::filesystem::current_path() << std::endl;
