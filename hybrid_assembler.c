@@ -519,13 +519,15 @@ int main()
 
     while (fgets(line, sizeof(line), source_file)) {
         line_number++;
+        
         char* cursor = line;
         while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
         cursor[strcspn(cursor, "\r\n")] = 0;
 
         if (strlen(cursor) == 0 || cursor[0] == ';' || cursor[0] == '#') continue;
+        char* colon = strchr(cursor, ':');
 
-        if (strchr(cursor, ':') != NULL) {
+        if (colon && colon[1] == '\0') {
             char func_name[64];
             sscanf(cursor, "%[^:]", func_name);
             add_label(func_name, current_address);
@@ -539,8 +541,16 @@ int main()
         }
 
         int instruction_words = 0;
+        if (strncmp(cursor, "HEX ", 4) == 0) {
+            int words = 1;
+            for (char* p = cursor + 4; *p; p++) {
+                if (*p == ',')
+                    words++;
+            }
 
-        if (strncmp(cursor, "call ", 5) == 0) {
+            advance_address(words);
+            continue;
+        }else if (strncmp(cursor, "call ", 5) == 0) {
             if (stj_pending) {
                 fprintf(stderr,
                     "Warning: 'call' at line %d intervenes before the 'STJ' at line %d (\"%s\") is consumed by a conditional jump.\n"
@@ -555,7 +565,7 @@ int main()
             instruction_words = 6;
             advance_address(instruction_words);
             continue;
-        }
+        } 
         else if (strchr(cursor, '=') != NULL) {
             instruction_words = 1;
             char left_side[128] = { 0 }, right_side[128] = { 0 };
@@ -587,6 +597,7 @@ int main()
             if (mnemonic) {
                 // Strip trailing newline for clean warning text / mnemonic comparisons
                 char clean_line[256];
+             
                 strncpy(clean_line, cursor, sizeof(clean_line) - 1);
                 clean_line[sizeof(clean_line) - 1] = '\0';
                 clean_line[strcspn(clean_line, "\r\n")] = '\0';
@@ -646,7 +657,9 @@ int main()
     }
     // NOTE: do NOT fclose(source_file) here - source_file == expanded_file,
     // and it's needed again for Pass 2. Just rewind it below.
-
+    printf("Finished Pass 1\n");
+    printf("Labels found: %zu\n", label_count);
+    printf("Starting Pass 2\n");
     // =========================================================================
     // PASS 2: GENERATE MACHINE HEX CODES
     // =========================================================================
@@ -662,11 +675,31 @@ int main()
 
     while (fgets(line, sizeof(line), source_file)) {
         char* cursor = line;
+
+        printf("PASS2: %s\n", cursor);
         while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') cursor++;
         cursor[strcspn(cursor, "\r\n")] = 0;
-
         if (strlen(cursor) == 0 || cursor[0] == ';' || cursor[0] == '#') continue;
+        if (strncmp(cursor, "define ", 7) == 0)
+        {
+            continue;
+        }
         if (strchr(cursor, ':') != NULL) continue;
+        if (strncmp(cursor, "HEX ", 4) == 0) {
+            char buffer[256];
+            strcpy(buffer, cursor + 4);
+
+            char* token = strtok(buffer, ", ");
+
+            while (token) {
+                fprintf(output_file, "%04X\n",
+                    (unsigned short)strtoul(token, NULL, 16));
+
+                token = strtok(NULL, ", ");
+            }
+
+            continue;
+        }
 
         if (strncmp(cursor, "call ", 5) == 0) {
             char target_func[64];
