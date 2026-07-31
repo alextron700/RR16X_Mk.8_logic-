@@ -301,14 +301,14 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		if (!M_flag) programEAM = dataEAM;
 		return;
 	case 14:
-		popValue = stack.back();
-		std::cout << "RETURNING!" << std::endl;
-		if (stack.empty())
-		{
-			std::cerr << "Stack underflow!" << std::endl;
-			return;
-		}
-		stack.pop_back();
+		//std::cout << "RETURNING!" << std::endl;
+if (stack.empty())
+{
+	std::cerr << "Stack underflow!" << std::endl;
+	return;
+}
+popValue = stack.back();
+stack.pop_back();
 		PC = popValue & 0xFFFF;
 		programEAM = (popValue >> 16) & 0x7FF;
 		interruptMask = M_flag;
