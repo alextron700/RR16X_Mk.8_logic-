@@ -1,5 +1,5 @@
 #include "FP32Coprocessor.h"
-#include <bit>
+#include <cstring> //note: This used to be bit but bit died for some reason
 uint16_t FP32Coprocessor::read(uint32_t address)
 {
 	switch (address)
@@ -38,11 +38,18 @@ void FP32Coprocessor::write(uint32_t address, uint16_t value)
 }
 void FP32Coprocessor::tick()
 {
-	uint32_t AInt = (AHigh << 16) | ALow;
-	uint32_t BInt = (BHigh << 16) | BLow;
+	uint32_t AInt =
+		(static_cast<uint32_t>(static_cast<uint16_t>(AHigh)) << 16)
+		| ALow;
+	uint32_t BInt =
+		(static_cast<uint32_t>(static_cast<uint16_t>(BHigh)) << 16)
+		| BLow;
 	float output = 0.0f;
-	float Afloat = std::bit_cast<float>(AInt);
-	float Bfloat = std::bit_cast<float>(BInt);
+	float Afloat;
+	std::memcpy(&Afloat, &AInt, sizeof(Afloat));
+
+	float Bfloat;
+	std::memcpy(&Bfloat, &BInt, sizeof(Bfloat));
 	switch (command)
 	{
 	case 0:
@@ -66,7 +73,8 @@ void FP32Coprocessor::tick()
 	default:
 		output = 0.0f;
 	}
-	int32_t outInt = std::bit_cast<int32_t>(output);
+	int32_t outInt;
+	std::memcpy(&outInt, &output, sizeof(output));
 	outLow = outInt & 0xFFFF;
 	outHigh = (outInt >> 16) & 0xFFFF;
 }
