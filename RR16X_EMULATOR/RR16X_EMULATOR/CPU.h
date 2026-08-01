@@ -13,11 +13,10 @@ public:
 	// dump current state to configurable output
 	void dumpState(std::ostream& out = std::cout);
 	// returns all registers
-	std::vector<uint16_t> getRegs() const
-	{
-	const std::vector<uint16_t> l = this->registers;
-	return l;
-	}
+	std::vector<uint16_t> CPU::getRegs() const
+{
+    return this->registers;
+}
 	// returns the program counter
 	uint32_t getPC(const bool includeProgramEAM = true) const
 	{
