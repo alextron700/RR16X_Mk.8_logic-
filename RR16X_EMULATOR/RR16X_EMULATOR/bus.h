@@ -14,7 +14,7 @@ public:
     void initDevices(std::vector<AbstractPeripheral*> listDevices);
     AbstractPeripheral* findDeviceRead(uint32_t address);
     // reads a word from memory
-    AbstractPeripheral* findDeviceWrite(uint32_t address);
+    AbstractPeripheral* findDeviceWrite(uint32_t address,uint16_t value);
     uint16_t read(uint32_t address);
     // writes a word to memory
     void write(uint32_t address, uint16_t value);
