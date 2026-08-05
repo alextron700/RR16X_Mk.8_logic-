@@ -21,7 +21,7 @@ uint16_t DMA::read(uint32_t address)
 	case 0x07ff'ffee:
 		return (dest_address & 0xFFFF0000) >> 16;
 	default:
-		return 0;
+		return AbstractPeripheral::read(address);;
 	}
 }
 void DMA::write(uint32_t address, uint16_t value)
@@ -48,7 +48,7 @@ void DMA::write(uint32_t address, uint16_t value)
 		dest_address |= value << 16;
 		break;
 	default:
-		return;
+		AbstractPeripheral::write(address, value);
 	}
 }
 void DMA::tick()
@@ -68,7 +68,7 @@ void DMA::tick()
 			enhancer.raise_interrupt(2,handler_address);
 		}
 	}
-	if(count == 0)
+	if (count == 0)
 	{
 		isRunning = false;
 	}

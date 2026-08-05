@@ -41,8 +41,8 @@ void InterruptEnhancer::write(uint32_t address, uint16_t value)
         mask_register = value;
         break;
     default:
-        // If the address doesn't match our registers, fall back to our safe base class alert
-        return;
+        // fallback to debug trap
+        AbstractPeripheral::write(address, value);
     }
 }
 uint16_t InterruptEnhancer::read(uint32_t address)
@@ -54,8 +54,7 @@ uint16_t InterruptEnhancer::read(uint32_t address)
     case 0x07FFFFF5:
         return mask_register;
     default:
-        // If the address doesn't match our registers, fall back to our safe base class alert
-        return 0;
+        return AbstractPeripheral::read(address);
     }
 }
 void InterruptEnhancer::raise_interrupt(uint16_t line_number, uint32_t vector_address)

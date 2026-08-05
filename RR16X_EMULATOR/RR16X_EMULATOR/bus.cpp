@@ -6,7 +6,7 @@
 #include <vector>
 #include <algorithm>
 bus::bus(size_t size) : memory(size, 0) {}
-void bus::initDevices(std::vector<AbstractPeripheral*>& listDevices)
+void bus::initDevices(std::vector<AbstractPeripheral*> listDevices)
 {
     devices = listDevices;
 }
@@ -15,7 +15,7 @@ AbstractPeripheral* bus::findDeviceRead(uint32_t address)
 {
     for (auto* d : devices)
     {
-        const auto& R = d->readableAddresses;
+          std::vector<int32_t> R = d->readableAddresses;
         if (std::find(R.begin(), R.end(), address) != R.end())
         {
             return d;
@@ -28,7 +28,7 @@ AbstractPeripheral* bus::findDeviceWrite(uint32_t address)
 { 
     for (auto* d : devices)
     {
-       const auto& R = d->writableAddresses;
+        std::vector<int32_t> R = d->writableAddresses;
         if (std::find(R.begin(), R.end(), address) != R.end())
         {
             return d;
@@ -87,11 +87,10 @@ bool bus::loadProgram(const std::string& filename, uint32_t startAddress, bool i
                 buffer.push_back(static_cast<uint16_t>(wordValue));
             }
             catch (const std::invalid_argument& e) {
-                
-                std::cerr << "Warning: Skipped invalid hex token '" << hexWord <<e.what()<< "'\n";
+                std::cerr << "Warning: Skipped invalid hex token '" << hexWord << "'\n";
             }
             catch (const std::out_of_range& e) {
-                std::cerr << "Warning: Hex token out of range '" << hexWord <<e.what()<< "'\n";
+                std::cerr << "Warning: Hex token out of range '" << hexWord << "'\n";
             }
         }
     }

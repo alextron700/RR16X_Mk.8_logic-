@@ -6,15 +6,15 @@ uint16_t Timer::read(uint32_t address)
 	case 0x07FFFFFE:
 		return time;
 	default:
-		return 0;
- }
+		return AbstractPeripheral::read(address);
+	}
 }
 void Timer::write(uint32_t address, uint16_t value)
 {
 	switch (address)
 	{
 	default:
-		return;
+		AbstractPeripheral::write(address, value);
 	}
 }
 void Timer::tick()

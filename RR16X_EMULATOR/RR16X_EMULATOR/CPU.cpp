@@ -66,8 +66,8 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	uint32_t pushValue = 0;
 	uint32_t popValue = 0;
 	uint32_t Address = 0;
-	int16_t X = 0;
-	int16_t Y = 0;
+	uint16_t X = 0;
+	uint16_t Y = 0;
 	uint16_t i;
 	int16_t Result = 0;
 	bool makes = true;
@@ -223,7 +223,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 			JR &= 0xFFFF0000;
 			JR |= (static_cast<uint16_t>(X) & 0xFFFF);
 		}
-		std::cout << "JR IS NOW:" << std::hex << JR << std::endl; 
+		//std::cout << "JR IS NOW:" << std::hex << JR << std::endl; 
 		makes = false;
 		break;
 	case 12:
@@ -280,7 +280,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		{
 			PC = (JR & 0x0000FFFF);
 			programEAM = (JR & 0xFFFF0000) >> 16;
-			std::cout << "BRANCHING TO:" << std::hex <<JR<<'\n';
+			//std::cout << "BRANCHING TO:" << std::hex <<JR<<'\n';
 			return;
 		}
 		makes = false;
@@ -301,14 +301,14 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		if (!M_flag) programEAM = dataEAM;
 		return;
 	case 14:
-		//std::cout << "RETURNING!" << std::endl;
-if (stack.empty())
-{
-	std::cerr << "Stack underflow!" << std::endl;
-	return;
-}
-popValue = stack.back();
-stack.pop_back();
+		popValue = stack.back();
+		std::cout << "RETURNING!" << std::endl;
+		if (stack.empty())
+		{
+			std::cerr << "Stack underflow!" << std::endl;
+			return;
+		}
+		stack.pop_back();
 		PC = popValue & 0xFFFF;
 		programEAM = (popValue >> 16) & 0x7FF;
 		interruptMask = M_flag;

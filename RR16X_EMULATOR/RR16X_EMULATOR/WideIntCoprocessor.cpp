@@ -19,8 +19,9 @@ uint16_t WideIntCoprocessor::read(uint32_t address)
 		return outLow;
 	case 0x07ff'ffe7:
 		return outHigh;
-	default:
-		return 0;
+		//AbstractPeripheral base class fallback 
+		return AbstractPeripheral::read(address);
+		break;
 }
 
 }
@@ -44,13 +45,15 @@ void WideIntCoprocessor::write(uint32_t address, uint16_t value)
 		command = value;
 		break;
 	default:
-		return;
+		//AbstractPeripheral base class fallback 
+		AbstractPeripheral::write(address, value);
+		break;
 	}
 }
 void WideIntCoprocessor::tick()
 {
 	uint32_t Awide = (AHigh << 16) | ALow;
-	uint32_t Bwide = (BHigh << 16) | BHigh;
+	uint32_t Bwide = (BHigh << 16) | BLow;
 	int32_t outWide = 0;
 	switch (command)
 	{

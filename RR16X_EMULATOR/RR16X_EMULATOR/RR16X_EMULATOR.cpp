@@ -20,7 +20,7 @@
 int main()
 {
     std::string filePath;
-      std::cout << "Enter program file path: (Must have formatted hex values, you can generate one with hybrid_assembler.c) ACCEPTS: .txt, .bin, .hex: \n";
+    std::cout << "Enter program file path: ";
     std::cin >> std::ws;
     std::getline(std::cin, filePath);
     //std::cout << "Looking for files in: " << std::filesystem::current_path() << std::endl;
@@ -57,13 +57,13 @@ int main()
     InterruptEnhancer IE;
 
    // std::cout << "[TRACER 2] Initializing Timer...\n";
-    Timer timer(IE, 0);
+    Timer timer(IE, 0x00CE);
 
     //std::cout << "[TRACER 3] Initializing Multiplier...\n";
     Multiplier multiplier;
 
     //std::cout << "[TRACER 4] Initializing UART...\n";
-    UART uart(IE, 0);
+    UART uart(IE, 0x003C);
 
    // std::cout << "[TRACER 5] Initializing WIC...\n";
     WideIntCoprocessor WIC;
@@ -72,7 +72,7 @@ int main()
     FP32Coprocessor FC;
 
    // std::cout << "[TRACER 7] Initializing DMA...\n";
-    DMA dma(myBus, IE, 0);
+    DMA dma(myBus, IE, 0x00D2);
 
     //std::cout << "[TRACER 8] About to load program from: " << filePath << "\n";
     if (!myBus.loadProgram(filePath, 0x0000,true)) {
@@ -87,32 +87,32 @@ int main()
     // get the memory address at the program counter. If the instruction isn't halt
     std::vector<AbstractPeripheral*> APList = { &timer,&dma,&uart,&IE,&multiplier,&WIC,&FC };
     myBus.initDevices(APList);
-   while (myBus.read(PC) < 0xF000)
-{
-    //std::cerr << "LOOP: PC=" << std::hex << PC << std::endl;
+    while (myBus.read(PC) < 0xF000)
+    {
+        //std::cerr << "LOOP: PC=" << std::hex << PC << std::endl;
 
-    bool int_signal = IE.has_active_interrupt();
-        if(int_signal)
-        {
-            cpu.updateIVR(IE.get_highest_priority_vector());
-        }
-   
         for (auto AP : APList)
         {
             AP->tick();
         }
-       std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
-       if (!dma.isRunning)
-       {
-           if (trace)
+        bool int_signal = IE.has_active_interrupt();
+            if(int_signal)
+            {
+                cpu.updateIVR(IE.get_highest_priority_vector());
+            }
+   
+         // std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
+           if (!dma.isRunning)
            {
-               cpu.dumpState();
+               if (trace)
+               {
+                   cpu.dumpState();
+               }
+               cpu.step(myBus, int_signal, trace);
            }
-           cpu.step(myBus, int_signal, trace);
-       }
-        PC = cpu.getPC(true);
-        //cpu.dumpState();
-}
+            PC = cpu.getPC(true);
+            //cpu.dumpState();
+    }
    // std::cerr << "LOOP EXIT: PC=" << std::hex << PC
    //     << " opcode=" << myBus.read(PC) << std::endl;
     return 0;

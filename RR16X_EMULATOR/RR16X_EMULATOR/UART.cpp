@@ -28,7 +28,7 @@ uint16_t UART::read(uint32_t address)
 {
     switch (address)
     {
-    case 0x07FFFFFE6: // Data Register Read
+    case 0x07FFFFE6: // Data Register Read
         if (!rx_buffer.empty()) {
             char c = rx_buffer.front();
             rx_buffer.pop();
@@ -41,10 +41,10 @@ uint16_t UART::read(uint32_t address)
         }
         return 0; // Return null if no data is waiting
 
-    case 0x07FFFFFE5: // Status Register Read
+    case 0x07FFFFE5: // Status Register Read
         return status_register;
 
-    case 0x07FFFFFE4: // Control Register Read
+    case 0x07FFFFE4: // Control Register Read
         return control_register;
 
     default:
@@ -61,15 +61,16 @@ void UART::write(uint32_t address, uint16_t value)
         std::cout.flush(); // Force character to display immediately without waiting for \n
         break;
 
-    case 0x07FFFFFE5:
+    case 0x07FFFFE5:
         std::cerr << "ERROR: Attempted illegal write to Read-Only UART Status Register\n";
         break;
 
-    case 0x07FFFFFE4: // Control Register Write
+    case 0x07FFFFE4: // Control Register Write
         control_register = value;
         break;
 
     default:
+        //AbstractPeripheral base class fallback 
         AbstractPeripheral::write(address, value);
         break;
     }
@@ -115,7 +116,8 @@ void UART::tick()
         {
             enhancer.raise_interrupt(UART_INTERRUPT_LINE, UART_VECTOR_ADDRESS);
         }
-    }else {
-    enhancer.clear_interrupt(UART_INTERRUPT_LINE);
+    }
+    else {
+        enhancer.clear_interrupt(UART_INTERRUPT_LINE);
     }
 }
