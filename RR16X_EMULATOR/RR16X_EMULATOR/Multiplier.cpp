@@ -30,7 +30,9 @@ uint16_t Multiplier::read(uint32_t address)
     case 0x07ff'fffa:
         return outHigh;
     default:
-        return 0;
+        //AbstractPeripheral base class fallback 
+        return AbstractPeripheral::read(address);
+        break;
     }
 }
 
@@ -49,7 +51,7 @@ void Multiplier::write(uint32_t address, uint16_t value)
         multiplyUnsigned(a, b);
         break;
     default:
-        //AbstractPeripheral::write(address, value);
+        AbstractPeripheral::write(address, value);
         break;
     }
 }
