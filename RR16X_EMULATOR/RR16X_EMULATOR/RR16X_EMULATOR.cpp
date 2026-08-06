@@ -25,6 +25,10 @@ int main()
     std::getline(std::cin, filePath);
     //std::cout << "Looking for files in: " << std::filesystem::current_path() << std::endl;
     bus myBus(0x800'0000); // Initialize with your desired memory size
+    for (int i = 0x07FF'0000; i < 0x07FF'7FFF; ++i)
+    {
+    myBus.write(i, 0x0000);
+    };
     char haveTrace = '\0';
     std::string input;
     std::cout << "Would you like to have an execution trace? Y/N\n";
