@@ -290,7 +290,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		pushValue |= programEAM << 16;
 		std::cout << "FIRST INSTRUCTION OF SUBROUTINE:" << std::hex << memory.read(X) << std::endl;
 		std::cout << "AT ADDRESS: " << std::hex << X << std::endl;
-		if (stack.size() >= 255)
+		if (stack.size() > 255)
 		{
 			std::cerr << "Stack Overflow!" << std::endl;
 			return;
@@ -326,7 +326,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 
 
 
-	if (PC + LX + LY > 0xFFFF)
+	if (PC + LX + LY + 1 > 0xFFFF)
 	{
 		PC = (PC + LX + LY + 1) & 0xFFFF;
 		programEAM++;
