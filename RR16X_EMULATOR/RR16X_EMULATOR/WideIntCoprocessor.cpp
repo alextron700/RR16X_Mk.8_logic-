@@ -19,6 +19,8 @@ uint16_t WideIntCoprocessor::read(uint32_t address)
 		return outLow;
 	case 0x07ff'ffe7:
 		return outHigh;
+		break;
+		deafault:
 		//AbstractPeripheral base class fallback 
 		return AbstractPeripheral::read(address);
 		break;
