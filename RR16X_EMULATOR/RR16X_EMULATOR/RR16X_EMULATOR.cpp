@@ -25,16 +25,16 @@ int main()
     std::getline(std::cin, filePath);
     //std::cout << "Looking for files in: " << std::filesystem::current_path() << std::endl;
     bus myBus(0x800'0000); // Initialize with your desired memory size
-    for (int i = 0x07FF'0000; i < 0x07FF'7FFF; ++i)
+    for (int i = 0x07FF'0000; i < 0x07FF'8000; ++i)
     {
-    myBus.write(i, 0x0000);
+        myBus.write(i, 0x0000);
     };
     char haveTrace = '\0';
     std::string input;
     std::cout << "Would you like to have an execution trace? Y/N\n";
     while (haveTrace == '\0')
     {
-       
+
         std::getline(std::cin, input);
         if (input[0] == 'Y')
         {
@@ -57,10 +57,10 @@ int main()
         trace = false;
     }
     std::cout << "STARTING EXECUTION...\n";
-   // std::cout << "[TRACER 1] Initializing IE...\n";
+    // std::cout << "[TRACER 1] Initializing IE...\n";
     InterruptEnhancer IE;
 
-   // std::cout << "[TRACER 2] Initializing Timer...\n";
+    // std::cout << "[TRACER 2] Initializing Timer...\n";
     Timer timer(IE, 0x00CE);
 
     //std::cout << "[TRACER 3] Initializing Multiplier...\n";
@@ -69,22 +69,22 @@ int main()
     //std::cout << "[TRACER 4] Initializing UART...\n";
     UART uart(IE, 0x003C);
 
-   // std::cout << "[TRACER 5] Initializing WIC...\n";
+    // std::cout << "[TRACER 5] Initializing WIC...\n";
     WideIntCoprocessor WIC;
 
-   // std::cout << "[TRACER 6] Initializing FC...\n";
+    // std::cout << "[TRACER 6] Initializing FC...\n";
     FP32Coprocessor FC;
 
-   // std::cout << "[TRACER 7] Initializing DMA...\n";
+    // std::cout << "[TRACER 7] Initializing DMA...\n";
     DMA dma(myBus, IE, 0x00D2);
 
     //std::cout << "[TRACER 8] About to load program from: " << filePath << "\n";
-    if (!myBus.loadProgram(filePath, 0x0000,true)) {
+    if (!myBus.loadProgram(filePath, 0x0000, true)) {
         std::cerr << "Failed to load program!" << std::endl;
         return 1;
     }
     //bus BUS = bus(0xFFFF * 0x0800);
-    CPU cpu = CPU(); 
+    CPU cpu = CPU();
     //std::vector<uint16_t> test = {0x1088, 0x0000, 0x0000,0xB880, 0x0003, 0x1008, 0x0001,0xC108,0x000A,0xF000};
     uint32_t PC = cpu.getPC(true);
     std::cout << "Program load success!\n";
@@ -100,25 +100,25 @@ int main()
             AP->tick();
         }
         bool int_signal = IE.has_active_interrupt();
-            if(int_signal)
+        if (int_signal)
+        {
+            cpu.updateIVR(IE.get_highest_priority_vector());
+        }
+
+        // std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
+        if (!dma.isRunning)
+        {
+            if (trace)
             {
-                cpu.updateIVR(IE.get_highest_priority_vector());
+                cpu.dumpState();
             }
-   
-         // std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
-           if (!dma.isRunning)
-           {
-               if (trace)
-               {
-                   cpu.dumpState();
-               }
-               cpu.step(myBus, int_signal, trace);
-           }
-            PC = cpu.getPC(true);
-            //cpu.dumpState();
+            cpu.step(myBus, int_signal, trace);
+        }
+        PC = cpu.getPC(true);
+        //cpu.dumpState();
     }
-   // std::cerr << "LOOP EXIT: PC=" << std::hex << PC
-   //     << " opcode=" << myBus.read(PC) << std::endl;
+    // std::cerr << "LOOP EXIT: PC=" << std::hex << PC
+    //     << " opcode=" << myBus.read(PC) << std::endl;
     return 0;
 }
 
