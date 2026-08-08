@@ -8,7 +8,7 @@
 #include "bus.h"
 #include "AbstractPeripheral.h"
 
-#include "interruptEnhancer.h"
+#include "InterruptEnhancer.h"
 #include "Timer.h"
 #include "Multiplier.h"
 #include "UART.h"
