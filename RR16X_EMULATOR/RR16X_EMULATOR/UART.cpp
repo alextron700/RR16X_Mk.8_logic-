@@ -28,7 +28,7 @@ uint16_t UART::read(uint32_t address)
 {
     switch (address)
     {
-    case 0x07FFFFFE6: // Data Register Read
+    case 0x07FFFFE6: // Data Register Read
         if (!rx_buffer.empty()) {
             char c = rx_buffer.front();
             rx_buffer.pop();
@@ -45,10 +45,10 @@ uint16_t UART::read(uint32_t address)
         }
         return 0; // Return null if no data is waiting
 
-    case 0x07FFFFFE5: // Status Register Read
+    case 0x07FFFFE5: // Status Register Read
         return status_register;
 
-    case 0x07FFFFFE4: // Control Register Read
+    case 0x07FFFFE4: // Control Register Read
         return control_register;
 
     default:
