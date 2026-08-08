@@ -1,5 +1,6 @@
 #include "FP32Coprocessor.h"
 #include <bit>
+#include <cmath> 
 uint16_t FP32Coprocessor::read(uint32_t address)
 {
 	switch (address)
