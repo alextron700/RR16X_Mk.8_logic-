@@ -11,7 +11,7 @@ private:
 public:
     bus(size_t size);
     // initialises all devices
-    void initDevices(std::vector<AbstractPeripheral*> listDevices);
+    void initDevices(std::vector<AbstractPeripheral*>& listDevices);
     AbstractPeripheral* findDeviceRead(uint32_t address);
     // reads a word from memory
     AbstractPeripheral* findDeviceWrite(uint32_t address);
