@@ -7,7 +7,7 @@
 #include "bus.h"
 //init the processor
 CPU::CPU()
-{ 
+{
 	registers = { 0,0,0,0,0,0,0,0 };
 	PC = 0;
 	JR = 0;
@@ -24,19 +24,19 @@ void CPU::dumpState(std::ostream& out)
 {
 	out << "DUMPING STATE!\n";
 	out << "R0: " << std::hex << registers[0] << std::endl;
-	out<< "R1: " << std::hex << registers[1] << std::endl;
-	out<< "R2: " << std::hex << registers[2] << std::endl;
-	out<< "R3: " << std::hex << registers[3] << std::endl;
-	out<< "R4: " << std::hex << registers[4] << std::endl;
-	out<< "R5: " << std::hex << registers[5] << std::endl;
-	out<< "R6: " << std::hex << registers[6] << std::endl;
-	out<< "R7: " << std::hex << registers[7] << std::endl;
-	out<< "PC: " << std::hex << PC << std::endl;
-	out<< "programEAM: " << std::hex << programEAM << std::endl;
-	out<< "dataEAM: " << std::hex << dataEAM << std::endl;
-	out<< "JR: " << std::hex <<JR << std::endl;
+	out << "R1: " << std::hex << registers[1] << std::endl;
+	out << "R2: " << std::hex << registers[2] << std::endl;
+	out << "R3: " << std::hex << registers[3] << std::endl;
+	out << "R4: " << std::hex << registers[4] << std::endl;
+	out << "R5: " << std::hex << registers[5] << std::endl;
+	out << "R6: " << std::hex << registers[6] << std::endl;
+	out << "R7: " << std::hex << registers[7] << std::endl;
+	out << "PC: " << std::hex << PC << std::endl;
+	out << "programEAM: " << std::hex << programEAM << std::endl;
+	out << "dataEAM: " << std::hex << dataEAM << std::endl;
+	out << "JR: " << std::hex << JR << std::endl;
 	//out<< "SP: " << std::hex <<SP<< std::endl;
-	out<< "IVR:" << std::hex << IVR << std::endl;
+	out << "IVR:" << std::hex << IVR << std::endl;
 }
 //executes one clock cycle of program time
 void CPU::step(bus& memory, bool interrupt, bool trace)
@@ -168,7 +168,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 			Result = std::rotl(static_cast<uint16_t>(X), (Y & 0xF));//((X << (Y & 0xF)) | (X >> (0xF - (Y & 0xF))));
 		}
 		else {
-			Result = (X << (Y & 0xf))& 0xFFFF;
+			Result = (X << (Y & 0xf)) & 0xFFFF;
 		}
 		break;
 	case 8:
@@ -204,7 +204,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 			return;
 		}
 		//std::cout << "DEBUG, writing: " << std::hex << Y << " To: " << std::hex << static_cast<uint32_t>((dataEAM << 16) | (uint16_t)X )<< std::endl;
-		memory.write(Address,Y);
+		memory.write(Address, Y);
 		if (M_flag)
 		{
 			++X;
@@ -234,43 +234,43 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		case 0x0:
 			break;
 		case 0x1:
-			A = X < Y;
+			A = static_cast<int16_t>(X) < static_cast<int16_t>(Y);
 			break;
 		case 0x2:
-			A = X == Y;
+			A = static_cast<int16_t>(X) == static_cast<int16_t>(Y);
 			break;
 		case 0x3:
-			A = X <= Y;
+			A = static_cast<int16_t>(X) <= static_cast<int16_t>(Y);
 			break;
 		case 0x4:
-			A = X > Y;
+			A = static_cast<int16_t>(X) > static_cast<int16_t>(Y);
 			break;
 		case 0x5:
-			A = X != Y;
+			A = static_cast<int16_t>(X) != static_cast<int16_t>(Y);
 			break;
 		case 0x6:
-			A = X >= Y;
+			A = static_cast<int16_t>(X) >= static_cast<int16_t>(Y);
 			break;
 		case 0x7:
 			A = true;
 			break;
 		case 0x8:
-			A = static_cast<int16_t>(X) < static_cast<int16_t>(Y);
+			A = static_cast<uint16_t>(X) < static_cast<uint16_t>(Y);
 			break;
 		case 0x9:
-			A = static_cast<int16_t>(X) == static_cast<int16_t>(Y);
+			A = static_cast<uint16_t>(X) == static_cast<uint16_t>(Y);
 			break;
 		case 0xA:
-			A = static_cast<int16_t>(X) <= static_cast<int16_t>(Y);
+			A = static_cast<uint16_t>(X) <= static_cast<uint16_t>(Y);
 			break;
 		case 0xB:
-			A = static_cast<int16_t>(X) > static_cast<int16_t>(Y);
+			A = static_cast<uint16_t>(X) > static_cast<uint16_t>(Y);
 			break;
 		case 0xC:
-			A = static_cast<int16_t>(X) != static_cast<int16_t>(Y);
+			A = static_cast<uint16_t>(X) != static_cast<uint16_t>(Y);
 			break;
 		case 0xD:
-			A = static_cast<int16_t>(X) >= static_cast<int16_t>(Y);
+			A = static_cast<uint16_t>(X) >= static_cast<uint16_t>(Y);
 			break;
 		default:
 			std::cerr << "Unused or invalid jump condition!\n";
@@ -289,7 +289,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		pushValue = PC + LX + LY + 1;
 		pushValue |= programEAM << 16;
 		std::cout << "FIRST INSTRUCTION OF SUBROUTINE:" << std::hex << memory.read(X) << std::endl;
-		std::cout <<"AT ADDRESS: "<< std::hex << X << std::endl;
+		std::cout << "AT ADDRESS: " << std::hex << X << std::endl;
 		if (stack.size() >= 255)
 		{
 			std::cerr << "Stack Overflow!" << std::endl;
@@ -323,17 +323,17 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	{
 		registers[Dest] = Result;
 	}
-	
 
-	
+
+
 	if (PC + LX + LY > 0xFFFF)
 	{
-	 PC = (PC + LX + LY + 1) & 0xFFFF;
-	 programEAM++;
+		PC = (PC + LX + LY + 1) & 0xFFFF;
+		programEAM++;
 	}
 	else {
 		PC += LX + LY + 1;
 	}
-	
-	
+
+
 }
