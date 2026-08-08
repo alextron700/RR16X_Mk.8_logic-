@@ -19,7 +19,7 @@ void Timer::write(uint32_t address, uint16_t value)
 }
 void Timer::tick()
 { 
-		time++;
+		
 		if (++time == 0)
 		{
 			enhancer.raise_interrupt(0, interruptAddr);
