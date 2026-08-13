@@ -289,8 +289,8 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		pushValue = PC + LX + LY + 1;
 		pushValue |= programEAM << 16;
 		std::cout << "FIRST INSTRUCTION OF SUBROUTINE:" << std::hex << memory.read(X) << std::endl;
-		std::cout << "AT ADDRESS: " << std::hex << X << std::endl;
-		if (stack.size() > 255)
+		std::cout << "AT ADDRESS: " << std::hex << (programEAM << 16 )|X << std::endl;
+		if (stack.size() >= 256)
 		{
 			std::cerr << "Stack Overflow!" << std::endl;
 			return;
@@ -301,13 +301,14 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		if (!M_flag) programEAM = dataEAM;
 		return;
 	case 14:
-		popValue = stack.back();
+		
 		std::cout << "RETURNING!" << std::endl;
 		if (stack.empty())
 		{
 			std::cerr << "Stack underflow!" << std::endl;
 			return;
 		}
+		popValue = stack.back();
 		stack.pop_back();
 		PC = popValue & 0xFFFF;
 		programEAM = (popValue >> 16) & 0x7FF;
