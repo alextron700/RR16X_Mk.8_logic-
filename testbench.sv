@@ -1,2108 +1,893 @@
+`timescale 1ns/1ps
 
-// ================================================================
-// GATEWAY DRUG CPU + FP32 COPROCESSOR
-// ================================================================
-//
-// SystemVerilog source. ( USE ICARUS 12.0) 
-//
-// ================================================================
+// ============================================================================
+// GATEWAY DRUG CPU - COMPLETE SYSTEM TESTBENCH
+// Icarus Verilog 12.x / SystemVerilog
+// ============================================================================
 
-
-// ################################################################
-// # RR16X GATEWAY CPU
-// ################################################################
-
-module gateway_drug_cpu (
-    input  wire        clk,
-    input  wire        rst,
-    input  wire        ext_interrupt,
+module gateway_drug_tb;
 
-    output wire [26:0] mem_addr,
-    input  wire [15:0] mem_read_data,
-    output wire [15:0] mem_write_data,
-    output wire        mem_write_en,
+    // =========================================================================
+    // CLOCK / RESET
+    // =========================================================================
 
-    input  wire        dma_active
-);
+    reg clk;
+    reg rst;
 
-    // ================================================================
-    // RR16X ARCHITECTURAL STATE
-    // ================================================================
+    initial clk = 1'b0;
+    always #5 clk = ~clk;
 
-    reg [15:0] R [0:7];
 
-    reg [15:0] PC;
-    reg [15:0] IR;
+    // =========================================================================
+    // CPU BUS
+    // =========================================================================
 
-    reg [26:0] JR;
-    reg [26:0] IVR;
+    wire [26:0] mem_addr;
+    wire [15:0] mem_read_data;
+    wire [15:0] mem_write_data;
+    wire        mem_write_en;
 
-    reg [10:0] PROGRAM_EAM;
-    reg [10:0] DATA_EAM;
+    wire dma_active;
 
-    // 256-entry call/interrupt stack.
-    //
-    // SP is 0..256:
-    //   0     = empty
-    //   1     = one entry
-    //   256   = full
-    //
-    // The actual stack index is SP[7:0].
-    reg [26:0] call_stack [0:255];
-    reg  [8:0] stack_sp;
 
-    reg interrupt_enable;
-    reg halted;
+    // =========================================================================
+    // INTERRUPTS
+    // =========================================================================
 
-    // ================================================================
-    // DECODE
-    // ================================================================
+    reg        tb_interrupt;
+    reg [26:0] tb_interrupt_vector;
 
-    wire [3:0] opcode = IR[15:12];
-    wire       flag_M = IR[11];
 
-    wire [2:0] reg_D = IR[10:8];
+    // =========================================================================
+    // RAM
+    // =========================================================================
 
-    wire       flag_LX = IR[7];
-    wire [2:0] reg_X = IR[6:4];
+    localparam integer RAM_WORDS     = 2048;
+    localparam integer RAM_ADDR_BITS = 11;
 
-    wire       flag_LY = IR[3];
-    wire [2:0] reg_Y = IR[2:0];
-
-    wire [3:0] condition_code = {flag_M, reg_D};
-
-    // ================================================================
-    // IMMEDIATE STORAGE
-    // ================================================================
-
-    reg [15:0] immediate_x;
-    reg [15:0] immediate_y;
-
-    wire [15:0] operand_x =
-        flag_LX ? immediate_x : R[reg_X];
-
-    wire [15:0] operand_y =
-        flag_LY ? immediate_y : R[reg_Y];
-
-    // ================================================================
-    // FSM
-    // ================================================================
-
-    localparam
-        S_FETCH       = 4'd0,
-        S_DECODE      = 4'd1,
-        S_IMM_X       = 4'd2,
-        S_IMM_Y       = 4'd3,
-        S_EXECUTE     = 4'd4,
-        S_LDM_READ    = 4'd5,
-        S_STM_WRITE   = 4'd6,
-        S_COMMIT      = 4'd7,
-        S_INTERRUPT   = 4'd8,
-        S_HALT        = 4'd9;
-
-    reg [3:0] state;
-	wire [3:0] current_state = state;
-    // ================================================================
-    // INSTRUCTION ADDRESSING
-    // ================================================================
-
-    reg [15:0] instruction_pc;
-    reg [15:0] next_pc;
-    reg [16:0] instruction_length;
-
-    // ================================================================
-    // MEMORY TRANSACTION STATE
-    // ================================================================
-
-    reg [26:0] effective_address;
-
-    // ================================================================
-    // INTERRUPT STATE
-    // ================================================================
-
-    reg ext_interrupt_d;
-    reg interrupt_pending;
-
-    wire interrupt_edge =
-        ext_interrupt && !ext_interrupt_d;
-
-    // ================================================================
-    // STACK HELPERS
-    // ================================================================
-
-    wire stack_empty =
-        (stack_sp == 9'h000);
-
-    wire stack_full =
-        (stack_sp == 9'h100);
-
-    // ================================================================
-    // BRANCH CONDITION EVALUATION
-    // ================================================================
-
-    reg condition_met;
-
-    always @* begin
-        condition_met = 1'b0;
-
-        case (condition_code)
-
-            // Signed conditions
-            4'h0:
-                condition_met = 1'b0;
-
-            4'h1:
-                condition_met =
-                    ($signed(operand_x) < $signed(operand_y));
-
-            4'h2:
-                condition_met =
-                    (operand_x == operand_y);
-
-            4'h3:
-                condition_met =
-                    ($signed(operand_x) <= $signed(operand_y));
-
-            4'h4:
-                condition_met =
-                    ($signed(operand_x) > $signed(operand_y));
-
-            4'h5:
-                condition_met =
-                    (operand_x != operand_y);
-
-            4'h6:
-                condition_met =
-                    ($signed(operand_x) >= $signed(operand_y));
-
-            4'h7:
-                condition_met = 1'b1;
-
-            // Unsigned conditions
-            4'h8:
-                condition_met =
-                    (operand_x < operand_y);
-
-            4'h9:
-                condition_met =
-                    (operand_x == operand_y);
-
-            4'hA:
-                condition_met =
-                    (operand_x <= operand_y);
-
-            4'hB:
-                condition_met =
-                    (operand_x > operand_y);
-
-            4'hC:
-                condition_met =
-                    (operand_x != operand_y);
-
-            4'hD:
-                condition_met =
-                    (operand_x >= operand_y);
-
-            4'hE,
-            4'hF:
-                condition_met = 1'b0;
-
-            default:
-                condition_met = 1'b0;
-
-        endcase
-    end
-
-    // ================================================================
-    // MEMORY BUS
-    // ================================================================
-
-    assign mem_addr =
-        (state == S_LDM_READ || state == S_STM_WRITE)
-            ? effective_address
-            :
-        (state == S_IMM_X)
-            ? {PROGRAM_EAM, instruction_pc + 16'd1}
-            :
-        (state == S_IMM_Y)
-            ? {
-                PROGRAM_EAM,
-                instruction_pc +
-                (flag_LX ? 16'd2 : 16'd1)
-              }
-            :
-              {PROGRAM_EAM, PC};
-
-    assign mem_write_en =
-        (!dma_active &&
-         state == S_STM_WRITE);
-
-    assign mem_write_data =
-        operand_x;
-
-    // ================================================================
-    // INTERRUPT EDGE / PENDING REGISTER
-    // ================================================================
-
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            ext_interrupt_d <= 1'b0;
-            interrupt_pending <= 1'b0;
-        end
-        else begin
-            ext_interrupt_d <= ext_interrupt;
-
-            // Capture an interrupt edge even if DMA is active.
-            if (interrupt_edge && interrupt_enable)
-                interrupt_pending <= 1'b1;
-
-            // Clear when actually entering the handler.
-            if (state == S_INTERRUPT)
-                interrupt_pending <= 1'b0;
-        end
-    end
-
-    // ================================================================
-    // MAIN CPU
-    // ================================================================
+    reg [15:0] ram_array [0:RAM_WORDS-1];
 
     integer i;
 
-    always @(posedge clk or posedge rst) begin
+    wire ram_sel;
 
-        if (rst) begin
+    assign ram_sel =
+        (mem_addr < RAM_WORDS);
 
-            PC                 <= 16'h0000;
-            IR                 <= 16'h0000;
+    reg [15:0] ram_read_word;
 
-            JR                 <= 27'h0000000;
-            IVR                <= 27'h0000000;
-
-            PROGRAM_EAM        <= 11'h000;
-            DATA_EAM           <= 11'h000;
-
-            immediate_x        <= 16'h0000;
-            immediate_y        <= 16'h0000;
-
-            instruction_pc     <= 16'h0000;
-            next_pc            <= 16'h0000;
-            instruction_length <= 17'd1;
-
-            effective_address  <= 27'h0000000;
-
-            stack_sp           <= 9'h000;
-
-            interrupt_enable   <= 1'b1;
-            halted             <= 1'b0;
-
-            state              <= S_FETCH;
-
-            for (i = 0; i < 8; i = i + 1)
-                R[i] <= 16'h0000;
-
-        end
-
-        else if (!dma_active) begin
-
-            case (state)
-
-                // ====================================================
-                // FETCH
-                // ====================================================
-
-                S_FETCH: begin
-
-                    if (halted) begin
-                        state <= S_HALT;
-                    end
-
-                    else if (interrupt_pending &&
-                             interrupt_enable) begin
-
-                        state <= S_INTERRUPT;
-
-                    end
-
-                    else begin
-
-                        instruction_pc <= PC;
-
-                        IR <= mem_read_data;
-
-                        state <= S_DECODE;
-
-                    end
-                end
-
-                // ====================================================
-                // DECODE
-                // ====================================================
-
-                S_DECODE: begin
-
-                    if (flag_LX)
-                        state <= S_IMM_X;
-
-                    else if (flag_LY)
-                        state <= S_IMM_Y;
-
-                    else
-                        state <= S_EXECUTE;
-
-                end
-
-                // ====================================================
-                // IMMEDIATE X
-                // ====================================================
-
-                S_IMM_X: begin
-
-                    immediate_x <= mem_read_data;
-
-                    if (flag_LY)
-                        state <= S_IMM_Y;
-                    else
-                        state <= S_EXECUTE;
-
-                end
-
-                // ====================================================
-                // IMMEDIATE Y
-                // ====================================================
-
-                S_IMM_Y: begin
-
-                    immediate_y <= mem_read_data;
-
-                    state <= S_EXECUTE;
-
-                end
-
-                // ====================================================
-                // EXECUTE
-                // ====================================================
-
-                S_EXECUTE: begin
-
-                    case (opcode)
-
-                        // ------------------------------------------------
-                        // 0x0 : EAM.SET
-                        // ------------------------------------------------
-
-                        4'h0: begin
-
-                            if (flag_M)
-                                IVR <= {DATA_EAM, operand_x};
-                            else
-                                DATA_EAM <= operand_x[10:0];
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x1 : ADD
-                        // ------------------------------------------------
-
-                        4'h1: begin
-
-                            R[reg_D] <=
-                                operand_x +
-                                operand_y +
-                                (flag_M ? 16'h0001 : 16'h0000);
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x2 : SUB
-                        // ------------------------------------------------
-
-                        4'h2: begin
-
-                            R[reg_D] <=
-                                operand_x -
-                                operand_y -
-                                (flag_M ? 16'h0001 : 16'h0000);
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x3 : AND / ANDN
-                        // ------------------------------------------------
-
-                        4'h3: begin
-
-                            R[reg_D] <=
-                                operand_x &
-                                (flag_M ? ~operand_y : operand_y);
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x4 : OR / ORN
-                        // ------------------------------------------------
-
-                        4'h4: begin
-
-                            R[reg_D] <=
-                                operand_x |
-                                (flag_M ? ~operand_y : operand_y);
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x5 : NOT / NEG
-                        // ------------------------------------------------
-
-                        4'h5: begin
-
-                            if (flag_M)
-                                R[reg_D] <=
-                                    ~operand_x + 16'h0001;
-                            else
-                                R[reg_D] <=
-                                    ~operand_x;
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x6 : XOR / XNOR
-                        // ------------------------------------------------
-
-                        4'h6: begin
-
-                            R[reg_D] <=
-                                operand_x ^
-                                (flag_M ? ~operand_y : operand_y);
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x7 : SHL / ROL
-                        // ------------------------------------------------
-
-                        4'h7: begin : exec_shl
-
-                            reg [3:0] amount;
-
-                            amount = operand_y[3:0];
-
-                            if (flag_M) begin
-
-                                if (amount == 0) begin
-
-                                    R[reg_D] <= operand_x;
-
-                                end
-                                else begin
-
-                                    R[reg_D] <=
-                                        (operand_x << amount) |
-                                        (operand_x >> (16 - amount));
-
-                                end
-
-                            end
-                            else begin
-
-                                R[reg_D] <=
-                                    operand_x << amount;
-
-                            end
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x8 : SHR / ROR
-                        // ------------------------------------------------
-
-                        4'h8: begin : exec_shr
-
-                            reg [3:0] amount;
-
-                            amount = operand_y[3:0];
-
-                            if (flag_M) begin
-
-                                if (amount == 0) begin
-
-                                    R[reg_D] <= operand_x;
-
-                                end
-                                else begin
-
-                                    R[reg_D] <=
-                                        (operand_x >> amount) |
-                                        (operand_x << (16 - amount));
-
-                                end
-
-                            end
-                            else begin
-
-                                R[reg_D] <=
-                                    operand_x >> amount;
-
-                            end
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0x9 : LDM
-                        // ------------------------------------------------
-
-                        4'h9: begin
-
-                            effective_address <=
-                                {DATA_EAM, operand_x};
-
-                            state <= S_LDM_READ;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0xA : STM
-                        // ------------------------------------------------
-
-                        4'hA: begin
-
-                            effective_address <=
-                                {DATA_EAM, operand_x};
-
-                            state <= S_STM_WRITE;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0xB : STJ
-                        // ------------------------------------------------
-
-                        4'hB: begin
-
-                            JR[15:0] <= operand_x;
-
-                            if (!flag_M)
-                                JR[26:16] <= PROGRAM_EAM;
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0xC : BRANCH / NIL
-                        // ------------------------------------------------
-
-                        4'hC: begin
-
-                            // C000 = NIL
-                            if (IR[14:8] == 7'h00) begin
-
-                                state <= S_COMMIT;
-
-                            end
-
-                            else begin
-
-                                // JMP or conditional branch
-                                if (condition_code == 4'h7) begin
-
-                                    PC <= JR[15:0];
-                                    PROGRAM_EAM <= JR[26:16];
-
-                                end
-
-                                else if (condition_met) begin
-
-                                    PC <= JR[15:0];
-                                    PROGRAM_EAM <= JR[26:16];
-
-                                end
-
-                                state <= S_COMMIT;
-
-                            end
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0xD : CAL
-                        // ------------------------------------------------
-
-                        4'hD: begin
-
-                            if (!stack_full) begin
-
-                                call_stack[stack_sp[7:0]] <=
-                                    {
-                                        PROGRAM_EAM,
-                                        PC + instruction_length[15:0]
-                                    };
-
-                                stack_sp <= stack_sp + 9'd1;
-
-                            end
-
-                            PC <= operand_x;
-
-                            if (flag_M)
-                                PROGRAM_EAM <= DATA_EAM;
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0xE : RET / RET.C
-                        // ------------------------------------------------
-
-                        4'hE: begin
-
-                            if (!stack_empty) begin
-
-                                stack_sp <= stack_sp - 9'd1;
-
-                                PC <=
-                                    call_stack[
-                                        stack_sp[7:0] - 8'd1
-                                    ][15:0];
-
-                                PROGRAM_EAM <=
-                                    call_stack[
-                                        stack_sp[7:0] - 8'd1
-                                    ][26:16];
-
-                            end
-
-                            interrupt_enable <=
-                                flag_M ? 1'b0 : 1'b1;
-
-                            state <= S_COMMIT;
-
-                        end
-
-                        // ------------------------------------------------
-                        // 0xF : HLT
-                        // ------------------------------------------------
-
-                        4'hF: begin
-
-                            halted <= 1'b1;
-
-                            state <= S_HALT;
-
-                        end
-
-                        default: begin
-
-                            state <= S_COMMIT;
-
-                        end
-
-                    endcase
-
-                end
-
-                // ====================================================
-                // LDM READ
-                // ====================================================
-
-                S_LDM_READ: begin
-
-                    R[reg_D] <= mem_read_data;
-
-                    if (flag_M && !flag_LX)
-                        R[reg_X] <= R[reg_X] + 16'h0001;
-
-                    state <= S_COMMIT;
-
-                end
-
-                // ====================================================
-                // STM WRITE
-                // ====================================================
-
-                S_STM_WRITE: begin
-
-                    state <= S_COMMIT;
-
-                end
-
-                // ====================================================
-                // COMMIT
-                // ====================================================
-
-                S_COMMIT: begin
-
-                    case (opcode)
-
-                        4'hC: begin
-
-                            if (IR[14:8] == 7'h00) begin
-
-                                PC <=
-                                    PC + instruction_length[15:0];
-
-                            end
-
-                            else if (condition_code == 4'h7) begin
-
-                                // JMP: PC already updated.
-
-                            end
-
-                            else if (condition_met) begin
-
-                                // Taken branch: PC already updated.
-
-                            end
-
-                            else begin
-
-                                PC <=
-                                    PC + instruction_length[15:0];
-
-                            end
-
-                        end
-
-                        4'hD: begin
-
-                            // CAL already loaded target PC.
-
-                        end
-
-                        4'hE: begin
-
-                            // RET already loaded PC.
-
-                        end
-
-                        default: begin
-
-                            PC <=
-                                PC + instruction_length[15:0];
-
-                        end
-
-                    endcase
-
-                    // STM post-increment.
-                    if ((opcode == 4'hA) &&
-                        flag_M &&
-                        !flag_LX) begin
-
-                        R[reg_X] <=
-                            R[reg_X] + 16'h0001;
-
-                    end
-
-                    state <= S_FETCH;
-
-                end
-
-                // ====================================================
-                // INTERRUPT ENTRY
-                // ====================================================
-
-                S_INTERRUPT: begin
-
-                    if (!stack_full) begin
-
-                        call_stack[stack_sp[7:0]] <=
-                            {PROGRAM_EAM, PC};
-
-                        stack_sp <= stack_sp + 9'd1;
-
-                    end
-
-                    PC <= IVR[15:0];
-
-                    PROGRAM_EAM <= IVR[26:16];
-
-                    interrupt_enable <= 1'b0;
-
-                    state <= S_FETCH;
-
-                end
-
-                // ====================================================
-                // HALT
-                // ====================================================
-
-                S_HALT: begin
-
-                    if (interrupt_pending &&
-                        interrupt_enable) begin
-
-                        halted <= 1'b0;
-
-                        state <= S_INTERRUPT;
-
-                    end
-                    else begin
-
-                        state <= S_HALT;
-
-                    end
-
-                end
-
-                default: begin
-
-                    state <= S_FETCH;
-
-                end
-
-            endcase
-
-        end
-
-    end
-
-    // ================================================================
-    // INSTRUCTION LENGTH
-    // ================================================================
-
-    always @* begin
-
-        instruction_length = 17'd1;
-
-        if (flag_LX)
-            instruction_length =
-                instruction_length + 17'd1;
-
-        if (flag_LY)
-            instruction_length =
-                instruction_length + 17'd1;
-
-    end
-
-endmodule
-
-
-
-// ================================================================
-// FP32 IEEE-754 BINARY32 COPROCESSOR
-// ================================================================
-//
-// Memory map:
-//
-//   0x0 : Operand A low  16 bits
-//   0x1 : Operand A high 16 bits
-//   0x2 : Operand B low  16 bits
-//   0x3 : Operand B high 16 bits
-//
-//   0x4 : Control
-//         [1:0] operation
-//               00 = ADD
-//               01 = SUB
-//               10 = MUL
-//               11 = DIV
-//         [2]   START
-//
-//   0x5 : Result low  16 bits
-//   0x6 : Result high 16 bits
-//
-//   0x7 : Status
-//         [0] divide by zero
-//         [1] overflow
-//         [2] underflow
-//         [3] invalid operation
-//
-// ================================================================
-
-module fp32_coprocessor (
-    input  wire        clk,
-    input  wire        rst_n,
-
-    input  wire [3:0]  addr,
-    input  wire [15:0] din,
-    input  wire        write_en,
-
-    output reg  [15:0] dout,
-    output reg         busy
-);
-
-// ================================================================
-// MEMORY-MAPPED STATE
-// ================================================================
-
-reg [31:0] operand_a;
-reg [31:0] operand_b;
-reg [31:0] result;
-
-reg [3:0] control_reg;
-
-// [0] divide-by-zero
-// [1] overflow
-// [2] underflow
-// [3] invalid
-reg [3:0] status_reg;
-
-// ================================================================
-// FSM
-// ================================================================
-
-localparam
-    STATE_IDLE = 2'd0,
-    STATE_EXEC = 2'd1,
-    STATE_DONE = 2'd2;
-
-reg [1:0] state;
-
-// ================================================================
-// FUNCTION: SHIFT RIGHT WITH STICKY
-// ================================================================
-
-function [26:0] shift_right_sticky;
-
-    input [26:0] value;
-    input integer amount;
-
-    reg sticky;
-    integer k;
-
-    begin
-
-        sticky = 1'b0;
-
-        if (amount <= 0) begin
-
-            shift_right_sticky = value;
-
-        end
-        else if (amount >= 27) begin
-
-            for (k = 0; k < 27; k = k + 1)
-                sticky = sticky | value[k];
-
-            shift_right_sticky = 27'h0000000;
-            shift_right_sticky[0] = sticky;
-
-        end
-        else begin
-
-            shift_right_sticky = value >> amount;
-
-            for (k = 0; k < 27; k = k + 1) begin
-
-                if (k < amount)
-                    sticky = sticky | value[k];
-
-            end
-
-            shift_right_sticky[0] =
-                shift_right_sticky[0] | sticky;
-
-        end
-
-    end
-
-endfunction
-
-// ================================================================
-// FUNCTION: PACK / ROUND FP32
-// ================================================================
-
-function [35:0] pack_fp32;
-
-    input        sign_in;
-    input integer exp_in;
-    input [26:0] mant_in;
-    input [3:0]  status_in;
-
-    reg [26:0] mant;
-    reg [23:0] sig24;
-    reg [24:0] rounded_sig;
-
-    reg round_up;
-    reg inexact;
-
-    reg [31:0] out;
-    reg [3:0]  stat;
-
-    integer exp_work;
-    integer shift_amt;
-
-    begin
-
-        out  = 32'h00000000;
-        stat = status_in;
-
-        mant     = mant_in;
-        exp_work = exp_in;
-
-        // --------------------------------------------------------
-        // Exact zero
-        // --------------------------------------------------------
-
-        if (mant == 27'h0000000) begin
-
-            out = {
-                sign_in,
-                31'h00000000
-            };
-
-        end
-        else begin
-
-            // ----------------------------------------------------
-            // Move tiny results into subnormal range.
-            // ----------------------------------------------------
-
-            if (exp_work <= 0) begin
-
-                shift_amt = 1 - exp_work;
-
-                mant = shift_right_sticky(
-                    mant,
-                    shift_amt
-                );
-
-                exp_work = 1;
-
-            end
-
-            // ----------------------------------------------------
-            // Round-to-nearest-even.
-            // ----------------------------------------------------
-
-            round_up =
-                mant[2] &&
-                (
-                    mant[1] ||
-                    mant[0] ||
-                    mant[3]
-                );
-
-            inexact =
-                mant[2] ||
-                mant[1] ||
-                mant[0];
-
-            sig24 = mant[26:3];
-
-            if (round_up)
-                rounded_sig =
-                    {1'b0, sig24} + 25'd1;
-            else
-                rounded_sig =
-                    {1'b0, sig24};
-
-            // ----------------------------------------------------
-            // Rounding overflow.
-            // ----------------------------------------------------
-
-            if (rounded_sig[24]) begin
-
-                rounded_sig = 25'h1000000;
-                exp_work = exp_work + 1;
-
-            end
-
-            // ----------------------------------------------------
-            // Exponent overflow.
-            // ----------------------------------------------------
-
-            if (exp_work >= 255) begin
-
-                out = {
-                    sign_in,
-                    8'hFF,
-                    23'h000000
-                };
-
-                stat[1] = 1'b1;
-
-            end
-
-            // ----------------------------------------------------
-            // Normal result.
-            // ----------------------------------------------------
-
-            else if (exp_work > 1) begin
-
-                out = {
-                    sign_in,
-                    exp_work[7:0],
-                    rounded_sig[22:0]
-                };
-
-            end
-
-            // ----------------------------------------------------
-            // Minimum-normal / subnormal region.
-            // ----------------------------------------------------
-
-            else begin
-
-                if (rounded_sig[23]) begin
-
-                    out = {
-                        sign_in,
-                        8'h01,
-                        rounded_sig[22:0]
-                    };
-
-                end
-                else begin
-
-                    out = {
-                        sign_in,
-                        8'h00,
-                        rounded_sig[22:0]
-                    };
-
-                    if (inexact)
-                        stat[2] = 1'b1;
-
-                end
-
-            end
-
-        end
-
-        pack_fp32 = {
-            stat,
-            out
-        };
-
-    end
-
-endfunction
-
-// ================================================================
-// FUNCTION: FP32 CALCULATE
-// ================================================================
-
-function [35:0] fp_calculate;
-
-    input [31:0] a;
-    input [31:0] b;
-    input [1:0]  op;
-
-    reg sign_a;
-    reg sign_b;
-    reg sign_b_eff;
-    reg sign_res;
-
-    reg [7:0] expa;
-    reg [7:0] expb;
-
-    reg [22:0] fra;
-    reg [22:0] frb;
-
-    reg [23:0] siga;
-    reg [23:0] sigb;
-
-    reg a_zero;
-    reg b_zero;
-
-    reg a_inf;
-    reg b_inf;
-
-    reg a_nan;
-    reg b_nan;
-
-    reg [26:0] ma;
-    reg [26:0] mb;
-    reg [26:0] mant;
-
-    reg [27:0] sum;
-
-    reg [47:0] product;
-
-    reg [49:0] numerator;
-    reg [49:0] quotient;
-    reg [49:0] remainder;
-
-    reg [3:0] stat;
-
-    integer ea;
-    integer eb;
-    integer exp_work;
-    integer diff;
-    integer k;
-
-    begin
-
-        // --------------------------------------------------------
-        // Decode operands
-        // --------------------------------------------------------
-
-        sign_a = a[31];
-        sign_b = b[31];
-
-        expa = a[30:23];
-        expb = b[30:23];
-
-        fra = a[22:0];
-        frb = b[22:0];
-
-        a_zero =
-            (expa == 8'h00) &&
-            (fra  == 23'h000000);
-
-        b_zero =
-            (expb == 8'h00) &&
-            (frb  == 23'h000000);
-
-        a_inf =
-            (expa == 8'hFF) &&
-            (fra  == 23'h000000);
-
-        b_inf =
-            (expb == 8'hFF) &&
-            (frb  == 23'h000000);
-
-        a_nan =
-            (expa == 8'hFF) &&
-            (fra != 23'h000000);
-
-        b_nan =
-            (expb == 8'hFF) &&
-            (frb != 23'h000000);
-
-        stat = 4'h0;
-
-        // --------------------------------------------------------
-        // Effective exponents
-        // --------------------------------------------------------
-
-        if (expa == 0)
-            ea = 1;
+    always @(*) begin
+        if (ram_sel === 1'b1)
+            ram_read_word = ram_array[mem_addr[RAM_ADDR_BITS-1:0]];
         else
-            ea = expa;
-
-        if (expb == 0)
-            eb = 1;
-        else
-            eb = expb;
-
-        // --------------------------------------------------------
-        // Effective significands
-        // --------------------------------------------------------
-
-        if (expa == 0)
-            siga = {1'b0, fra};
-        else
-            siga = {1'b1, fra};
-
-        if (expb == 0)
-            sigb = {1'b0, frb};
-        else
-            sigb = {1'b1, frb};
-
-        // ========================================================
-        // NaN
-        // ========================================================
-
-        if (a_nan || b_nan) begin
-
-            fp_calculate = {
-                4'b1000,
-                32'h7FC00000
-            };
-
-        end
-
-        // ========================================================
-        // ADD
-        // ========================================================
-
-        else if (op == 2'b00) begin
-
-            if (a_inf && b_inf) begin
-
-                if (sign_a != sign_b) begin
-
-                    fp_calculate = {
-                        4'b1000,
-                        32'h7FC00000
-                    };
-
-                end
-                else begin
-
-                    fp_calculate = {
-                        4'b0000,
-                        sign_a,
-                        8'hFF,
-                        23'h000000
-                    };
-
-                end
-
-            end
-            else if (a_inf) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_a,
-                    8'hFF,
-                    23'h000000
-                };
-
-            end
-            else if (b_inf) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_b,
-                    8'hFF,
-                    23'h000000
-                };
-
-            end
-            else if (a_zero && b_zero) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_a & sign_b,
-                    31'h00000000
-                };
-
-            end
-            else if (a_zero) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    b
-                };
-
-            end
-            else if (b_zero) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    a
-                };
-
-            end
-            else begin
-
-                ma = {siga, 3'b000};
-                mb = {sigb, 3'b000};
-
-                if (ea > eb) begin
-
-                    diff = ea - eb;
-
-                    mb = shift_right_sticky(
-                        mb,
-                        diff
-                    );
-
-                    exp_work = ea;
-
-                end
-                else if (eb > ea) begin
-
-                    diff = eb - ea;
-
-                    ma = shift_right_sticky(
-                        ma,
-                        diff
-                    );
-
-                    exp_work = eb;
-
-                end
-                else begin
-
-                    exp_work = ea;
-
-                end
-
-                if (sign_a == sign_b) begin
-
-                    sum =
-                        {1'b0, ma} +
-                        {1'b0, mb};
-
-                    sign_res = sign_a;
-
-                    if (sum[27]) begin
-
-                        mant = shift_right_sticky(
-                            sum[27:1],
-                            1
-                        );
-
-                        exp_work = exp_work + 1;
-
-                    end
-                    else begin
-
-                        mant = sum[26:0];
-
-                    end
-
-                end
-                else begin
-
-                    if (ma > mb) begin
-
-                        mant = ma - mb;
-                        sign_res = sign_a;
-
-                    end
-                    else if (mb > ma) begin
-
-                        mant = mb - ma;
-                        sign_res = sign_b;
-
-                    end
-                    else begin
-
-                        mant = 27'h0000000;
-                        sign_res = 1'b0;
-
-                    end
-
-                    for (k = 0; k < 27; k = k + 1) begin
-
-                        if ((mant != 0) &&
-                            !mant[26] &&
-                            (exp_work > 1)) begin
-
-                            mant = mant << 1;
-                            exp_work = exp_work - 1;
-
-                        end
-
-                    end
-
-                end
-
-                fp_calculate =
-                    pack_fp32(
-                        sign_res,
-                        exp_work,
-                        mant,
-                        stat
-                    );
-
-            end
-
-        end
-
-        // ========================================================
-        // SUB
-        // ========================================================
-
-        else if (op == 2'b01) begin
-
-            sign_b_eff = ~sign_b;
-
-            if (a_inf && b_inf) begin
-
-                if (sign_a == sign_b) begin
-
-                    fp_calculate = {
-                        4'b1000,
-                        32'h7FC00000
-                    };
-
-                end
-                else begin
-
-                    fp_calculate = {
-                        4'b0000,
-                        sign_a,
-                        8'hFF,
-                        23'h000000
-                    };
-
-                end
-
-            end
-            else if (a_inf) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_a,
-                    8'hFF,
-                    23'h000000
-                };
-
-            end
-            else if (b_inf) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_b_eff,
-                    8'hFF,
-                    23'h000000
-                };
-
-            end
-            else if (a_zero && b_zero) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_a & ~sign_b,
-                    31'h00000000
-                };
-
-            end
-            else if (a_zero) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    ~sign_b,
-                    b[30:0]
-                };
-
-            end
-            else if (b_zero) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    a
-                };
-
-            end
-            else begin
-
-                ma = {siga, 3'b000};
-                mb = {sigb, 3'b000};
-
-                if (ea > eb) begin
-
-                    diff = ea - eb;
-
-                    mb = shift_right_sticky(
-                        mb,
-                        diff
-                    );
-
-                    exp_work = ea;
-
-                end
-                else if (eb > ea) begin
-
-                    diff = eb - ea;
-
-                    ma = shift_right_sticky(
-                        ma,
-                        diff
-                    );
-
-                    exp_work = eb;
-
-                end
-                else begin
-
-                    exp_work = ea;
-
-                end
-
-                if (sign_a == sign_b_eff) begin
-
-                    sum =
-                        {1'b0, ma} +
-                        {1'b0, mb};
-
-                    sign_res = sign_a;
-
-                    if (sum[27]) begin
-
-                        mant = shift_right_sticky(
-                            sum[27:1],
-                            1
-                        );
-
-                        exp_work = exp_work + 1;
-
-                    end
-                    else begin
-
-                        mant = sum[26:0];
-
-                    end
-
-                end
-                else begin
-
-                    if (ma > mb) begin
-
-                        mant = ma - mb;
-                        sign_res = sign_a;
-
-                    end
-                    else if (mb > ma) begin
-
-                        mant = mb - ma;
-                        sign_res = sign_b_eff;
-
-                    end
-                    else begin
-
-                        mant = 27'h0000000;
-                        sign_res = 1'b0;
-
-                    end
-
-                    for (k = 0; k < 27; k = k + 1) begin
-
-                        if ((mant != 0) &&
-                            !mant[26] &&
-                            (exp_work > 1)) begin
-
-                            mant = mant << 1;
-                            exp_work = exp_work - 1;
-
-                        end
-
-                    end
-
-                end
-
-                fp_calculate =
-                    pack_fp32(
-                        sign_res,
-                        exp_work,
-                        mant,
-                        stat
-                    );
-
-            end
-
-        end
-
-        // ========================================================
-        // MUL
-        // ========================================================
-
-        else if (op == 2'b10) begin
-
-            sign_res = sign_a ^ sign_b;
-
-            if ((a_zero && b_inf) ||
-                (a_inf && b_zero)) begin
-
-                fp_calculate = {
-                    4'b1000,
-                    32'h7FC00000
-                };
-
-            end
-            else if (a_inf || b_inf) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_res,
-                    8'hFF,
-                    23'h000000
-                };
-
-            end
-            else if (a_zero || b_zero) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_res,
-                    31'h00000000
-                };
-
-            end
-            else begin
-
-                product = siga * sigb;
-
-                exp_work =
-                    ea + eb - 127;
-
-                if (product[47]) begin
-
-                    mant = {
-                        product[47:24],
-                        product[23],
-                        product[22],
-                        |product[21:0]
-                    };
-
-                    exp_work = exp_work + 1;
-
-                end
-                else begin
-
-                    mant = {
-                        product[46:23],
-                        product[22],
-                        product[21],
-                        |product[20:0]
-                    };
-
-                end
-
-                for (k = 0; k < 27; k = k + 1) begin
-
-                    if ((mant != 0) &&
-                        !mant[26] &&
-                        (exp_work > 1)) begin
-
-                        mant = mant << 1;
-                        exp_work = exp_work - 1;
-
-                    end
-
-                end
-
-                fp_calculate =
-                    pack_fp32(
-                        sign_res,
-                        exp_work,
-                        mant,
-                        stat
-                    );
-
-            end
-
-        end
-
-        // ========================================================
-        // DIV
-        // ========================================================
-
-        else begin
-
-            sign_res = sign_a ^ sign_b;
-
-            if ((a_zero && b_zero) ||
-                (a_inf && b_inf)) begin
-
-                fp_calculate = {
-                    4'b1000,
-                    32'h7FC00000
-                };
-
-            end
-            else if (b_zero) begin
-
-                stat[0] = 1'b1;
-
-                fp_calculate = {
-                    stat,
-                    sign_res,
-                    8'hFF,
-                    23'h000000
-                };
-
-            end
-            else if (a_zero) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_res,
-                    31'h00000000
-                };
-
-            end
-            else if (a_inf) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_res,
-                    8'hFF,
-                    23'h000000
-                };
-
-            end
-            else if (b_inf) begin
-
-                fp_calculate = {
-                    4'b0000,
-                    sign_res,
-                    31'h00000000
-                };
-
-            end
-            else begin
-
-                numerator =
-                    {26'h0000000, siga} << 26;
-
-                quotient =
-                    numerator / sigb;
-
-                remainder =
-                    numerator % sigb;
-
-                exp_work =
-                    ea - eb + 127;
-
-                if (quotient[26]) begin
-
-                    mant = {
-                        quotient[26:3],
-                        quotient[2],
-                        quotient[1],
-                        quotient[0] |
-                        (remainder != 0)
-                    };
-
-                end
-                else begin
-
-                    mant = {
-                        quotient[25:2],
-                        quotient[1],
-                        quotient[0],
-                        (remainder != 0)
-                    };
-
-                    exp_work = exp_work - 1;
-
-                end
-
-                for (k = 0; k < 27; k = k + 1) begin
-
-                    if ((mant != 0) &&
-                        !mant[26] &&
-                        (exp_work > 1)) begin
-
-                        mant = mant << 1;
-                        exp_work = exp_work - 1;
-
-                    end
-
-                end
-
-                fp_calculate =
-                    pack_fp32(
-                        sign_res,
-                        exp_work,
-                        mant,
-                        stat
-                    );
-
-            end
-
-        end
-
+            ram_read_word = 16'h0000;
     end
 
-endfunction
 
-// ================================================================
-// CALCULATION RESULT WIRE
-// ================================================================
-//
-// Important:
-//
-// Do not write:
-//
-//     fp_calculate(...)[31:0]
-//
-// directly in the sequential block. Some Verilog/SystemVerilog
-// compilers reject selecting bits directly from a function call.
-//
-// ================================================================
+    // =========================================================================
+    // MEMORY MAP
+    // =========================================================================
 
-wire [35:0] fp_calculate_result;
+    localparam [26:0] VIRTUAL_UART_ADDR    = 27'h7FFFFFF;
+    localparam [26:0] HARDWARE_TIMER_ADDR  = 27'h7FFFFFE;
 
-assign fp_calculate_result =
-    fp_calculate(
-        operand_a,
-        operand_b,
-        control_reg[1:0]
-    );
+    // MDU
+    localparam [26:0] MDU_REG_A_ADDR       = 27'h7FFFFFD;
+    localparam [26:0] MDU_REG_B_ADDR       = 27'h7FFFFFC;
+    localparam [26:0] MDU_REG_RES_LO_ADDR  = 27'h7FFFFFB;
+    localparam [26:0] MDU_REG_RES_HI_ADDR  = 27'h7FFFFFA;
 
-// ================================================================
-// MEMORY-MAPPED WRITE INTERFACE
-// ================================================================
+    // FPU
+    localparam [26:0] FPU_BASE_ADDR        = 27'h7FFFFD0;
+    localparam [26:0] FPU_LAST_ADDR        = 27'h7FFFFD6;
 
-always @(posedge clk or negedge rst_n) begin
+    // VIC
+    localparam [26:0] VIC_ENABLE_ADDR      = 27'h7FFFFF5;
+    localparam [26:0] VIC_PENDING_ADDR     = 27'h7FFFFF4;
+    localparam [26:0] VIC_VECTOR_BASE_ADDR = 27'h7FFFFF3;
 
-    if (!rst_n) begin
+    // DMA
+    localparam [26:0] DMA_SRC_ADDR         = 27'h7FFFFF2;
+    localparam [26:0] DMA_DST_ADDR         = 27'h7FFFFF1;
+    localparam [26:0] DMA_CNT_ADDR         = 27'h7FFFFF0;
+    localparam [26:0] DMA_SRC_BANK        = 27'h7FFFFEF;
+    localparam [26:0] DMA_DST_BANK        = 27'h7FFFFEE;
 
-        operand_a   <= 32'h00000000;
-        operand_b   <= 32'h00000000;
-        control_reg <= 4'h0;
+    // INT32
+    localparam [26:0] INT32_REG_A_LO_ADDR = 27'h7FFFFED;
+    localparam [26:0] INT32_REG_A_HI_ADDR = 27'h7FFFFEC;
+    localparam [26:0] INT32_REG_B_LO_ADDR = 27'h7FFFFEB;
+    localparam [26:0] INT32_REG_B_HI_ADDR = 27'h7FFFFEA;
+    localparam [26:0] INT32_CMD_ADDR      = 27'h7FFFFE9;
+    localparam [26:0] INT32_RES_LO_ADDR   = 27'h7FFFFE8;
+    localparam [26:0] INT32_RES_HI_ADDR   = 27'h7FFFFE7;
 
-    end
-    else begin
 
-        if (write_en) begin
+    // =========================================================================
+    // HARDWARE TIMER
+    // =========================================================================
 
-            case (addr)
+    reg [15:0] hardware_timer;
 
-                4'h0:
-                    operand_a[15:0] <= din;
 
-                4'h1:
-                    operand_a[31:16] <= din;
+    // =========================================================================
+    // MDU
+    // =========================================================================
 
-                4'h2:
-                    operand_b[15:0] <= din;
+    reg [15:0] mdu_param_a;
+    reg [15:0] mdu_param_b;
 
-                4'h3:
-                    operand_b[31:16] <= din;
+    wire [31:0] mdu_product;
 
-                4'h4:
-                    control_reg <= din[3:0];
+    assign mdu_product = mdu_param_a * mdu_param_b;
 
-                default:
-                    begin
-                    end
 
-            endcase
+    // =========================================================================
+    // VIC
+    // =========================================================================
 
-        end
-        else if (state == STATE_DONE) begin
+    reg [15:0] vic_enabled_channels;
+    reg [15:0] vic_vector_base_ptr;
 
-            // Automatically clear START.
+    wire [3:0] vic_hardware_inputs;
+    wire [3:0] vic_active_requests;
+    wire [1:0] vic_highest_priority;
+    wire       vic_global_trigger;
 
-            control_reg[2] <= 1'b0;
+    assign vic_hardware_inputs = {3'b000, tb_interrupt};
 
-        end
+    assign vic_active_requests =
+        vic_hardware_inputs &
+        vic_enabled_channels[3:0];
 
-    end
+    assign vic_highest_priority =
+        (vic_active_requests & 4'b0001) ? 2'd0 :
+        (vic_active_requests & 4'b0010) ? 2'd1 :
+        (vic_active_requests & 4'b0100) ? 2'd2 :
+        2'd3;
 
-end
+    assign vic_global_trigger =
+        (vic_active_requests != 4'b0000);
 
-// ================================================================
-// MEMORY-MAPPED READ INTERFACE
-// ================================================================
 
-always @(*) begin
+    // =========================================================================
+    // DMA
+    // =========================================================================
 
-    case (addr)
+    reg [26:0] dma_source_ptr;
+    reg [26:0] dma_dest_ptr;
+    reg [15:0] dma_word_counter;
 
-        4'h0:
-            dout = operand_a[15:0];
+    assign dma_active =
+        (dma_word_counter != 16'h0000);
 
-        4'h1:
-            dout = operand_a[31:16];
 
-        4'h2:
-            dout = operand_b[15:0];
+    // =========================================================================
+    // INT32 COPROCESSOR
+    // =========================================================================
 
-        4'h3:
-            dout = operand_b[31:16];
+    reg [15:0] int32_a_lo;
+    reg [15:0] int32_a_hi;
+    reg [15:0] int32_b_lo;
+    reg [15:0] int32_b_hi;
+    reg [2:0]  int32_cmd;
 
-        4'h4:
-            dout = {
-                8'h00,
-                busy,
-                control_reg
-            };
+    wire [31:0] full_operand_a;
+    wire [31:0] full_operand_b;
 
-        4'h5:
-            dout = result[15:0];
+    reg [31:0] int32_result;
 
-        4'h6:
-            dout = result[31:16];
+    assign full_operand_a = {int32_a_hi, int32_a_lo};
+    assign full_operand_b = {int32_b_hi, int32_b_lo};
 
-        4'h7:
-            dout = {
-                12'h000,
-                status_reg
-            };
+    always @(*) begin
 
-        default:
-            dout = 16'h0000;
+        case (int32_cmd)
 
-    endcase
+            3'd0:
+                int32_result = full_operand_a + full_operand_b;
 
-end
+            3'd1:
+                int32_result = full_operand_a - full_operand_b;
 
-// ================================================================
-// MAIN FSM
-// ================================================================
+            3'd2:
+                int32_result = full_operand_a << full_operand_b[4:0];
 
-always @(posedge clk or negedge rst_n) begin
+            3'd3:
+                int32_result = full_operand_a >> full_operand_b[4:0];
 
-    if (!rst_n) begin
+            3'd4:
+                int32_result = full_operand_a & full_operand_b;
 
-        state      <= STATE_IDLE;
-        busy       <= 1'b0;
-        result     <= 32'h00000000;
-        status_reg <= 4'h0;
+            3'd5:
+                int32_result = full_operand_a | full_operand_b;
 
-    end
-    else begin
+            3'd6:
+                int32_result = full_operand_a ^ full_operand_b;
 
-        case (state)
-
-            // ----------------------------------------------------
-            // IDLE
-            // ----------------------------------------------------
-
-            STATE_IDLE: begin
-
-                busy <= 1'b0;
-
-                if (control_reg[2]) begin
-
-                    busy  <= 1'b1;
-                    state <= STATE_EXEC;
-
-                end
-
-            end
-
-            // ----------------------------------------------------
-            // EXECUTE
-            // ----------------------------------------------------
-
-            STATE_EXEC: begin
-
-                // Use the intermediate 36-bit calculation result.
-
-                result <= fp_calculate_result[31:0];
-
-                status_reg <= fp_calculate_result[35:32];
-
-                state <= STATE_DONE;
-
-            end
-
-            // ----------------------------------------------------
-            // DONE
-            // ----------------------------------------------------
-
-            STATE_DONE: begin
-
-                busy  <= 1'b0;
-                state <= STATE_IDLE;
-
-            end
-
-            // ----------------------------------------------------
-            // DEFAULT
-            // ----------------------------------------------------
-
-            default: begin
-
-                busy  <= 1'b0;
-                state <= STATE_IDLE;
-
-            end
+            default:
+                int32_result = 32'h00000000;
 
         endcase
 
     end
 
+
+    // =========================================================================
+    // FPU
+    // =========================================================================
+
+    wire        fpu_sel;
+    wire [15:0] fpu_dout;
+    wire        fpu_busy;
+
+    assign fpu_sel =
+        (mem_addr >= FPU_BASE_ADDR) &&
+        (mem_addr <= FPU_LAST_ADDR);
+
+    fp32_coprocessor fpu_uut (
+        .clk      (clk),
+        .rst_n    (!rst),
+        .addr     (mem_addr[3:0]),
+        .din      (mem_write_data),
+        .write_en (mem_write_en && fpu_sel),
+        .dout     (fpu_dout),
+        .busy     (fpu_busy)
+    );
+
+
+    // =========================================================================
+    // CPU
+    // =========================================================================
+
+    gateway_drug_cpu uut (
+        .clk                  (clk),
+        .rst                  (rst),
+        .ext_interrupt        (tb_interrupt),
+        .ext_interrupt_vector (tb_interrupt_vector),
+
+        .mem_addr             (mem_addr),
+        .mem_read_data        (mem_read_data),
+        .mem_write_data       (mem_write_data),
+        .mem_write_en         (mem_write_en),
+
+        .dma_active           (dma_active)
+    );
+
+
+    // =========================================================================
+    // MEMORY READ MUX
+    // =========================================================================
+
+    assign mem_read_data =
+        (mem_addr == HARDWARE_TIMER_ADDR) ? hardware_timer :
+        (mem_addr == MDU_REG_RES_LO_ADDR) ? mdu_product[15:0] :
+        (mem_addr == MDU_REG_RES_HI_ADDR) ? mdu_product[31:16] :
+        (mem_addr == VIC_PENDING_ADDR)    ? {12'h000, vic_active_requests} :
+        (mem_addr == DMA_SRC_ADDR)        ? dma_source_ptr[15:0] :
+        (mem_addr == DMA_DST_ADDR)        ? dma_dest_ptr[15:0] :
+        (mem_addr == DMA_CNT_ADDR)        ? dma_word_counter :
+        (mem_addr == INT32_REG_A_LO_ADDR) ? int32_a_lo :
+        (mem_addr == INT32_REG_A_HI_ADDR) ? int32_a_hi :
+        (mem_addr == INT32_REG_B_LO_ADDR) ? int32_b_lo :
+        (mem_addr == INT32_REG_B_HI_ADDR) ? int32_b_hi :
+        (mem_addr == INT32_RES_LO_ADDR)   ? int32_result[15:0] :
+        (mem_addr == INT32_RES_HI_ADDR)   ? int32_result[31:16] :
+        fpu_sel                           ? fpu_dout :
+        ram_read_word;
+
+
+    // =========================================================================
+    // PERIPHERAL WRITE LOGIC
+    // =========================================================================
+
+    always @(posedge clk or posedge rst) begin
+
+        if (rst) begin
+
+            hardware_timer       <= 16'h0000;
+
+            mdu_param_a          <= 16'h0000;
+            mdu_param_b          <= 16'h0000;
+
+            vic_enabled_channels <= 16'h0000;
+            vic_vector_base_ptr  <= 16'h0000;
+
+            dma_source_ptr       <= 27'h0000000;
+            dma_dest_ptr         <= 27'h0000000;
+            dma_word_counter     <= 16'h0000;
+
+            int32_a_lo           <= 16'h0000;
+            int32_a_hi           <= 16'h0000;
+            int32_b_lo           <= 16'h0000;
+            int32_b_hi           <= 16'h0000;
+            int32_cmd             <= 3'd7;
+
+        end
+        else begin
+
+            hardware_timer <= hardware_timer + 16'h0001;
+
+            // -------------------------------------------------------------
+            // DMA
+            // -------------------------------------------------------------
+
+            if (dma_active) begin
+
+                dma_source_ptr   <= dma_source_ptr + 27'd1;
+                dma_dest_ptr     <= dma_dest_ptr + 27'd1;
+                dma_word_counter <= dma_word_counter - 16'd1;
+
+            end
+
+            // -------------------------------------------------------------
+            // Peripheral writes
+            // -------------------------------------------------------------
+
+            else if (mem_write_en) begin
+
+                if (mem_addr == MDU_REG_A_ADDR)
+                    mdu_param_a <= mem_write_data;
+
+                if (mem_addr == MDU_REG_B_ADDR)
+                    mdu_param_b <= mem_write_data;
+
+                if (mem_addr == VIC_ENABLE_ADDR)
+                    vic_enabled_channels <= mem_write_data;
+
+                if (mem_addr == VIC_VECTOR_BASE_ADDR)
+                    vic_vector_base_ptr <= mem_write_data;
+
+                if (mem_addr == DMA_SRC_ADDR)
+                    dma_source_ptr[15:0] <= mem_write_data;
+
+                if (mem_addr == DMA_DST_ADDR)
+                    dma_dest_ptr[15:0] <= mem_write_data;
+
+                if (mem_addr == DMA_CNT_ADDR)
+                    dma_word_counter <= mem_write_data;
+
+                if (mem_addr == DMA_SRC_BANK)
+                    dma_source_ptr[26:16] <= mem_write_data[10:0];
+
+                if (mem_addr == DMA_DST_BANK)
+                    dma_dest_ptr[26:16] <= mem_write_data[10:0];
+
+                if (mem_addr == INT32_REG_A_LO_ADDR)
+                    int32_a_lo <= mem_write_data;
+
+                if (mem_addr == INT32_REG_A_HI_ADDR)
+                    int32_a_hi <= mem_write_data;
+
+                if (mem_addr == INT32_REG_B_LO_ADDR)
+                    int32_b_lo <= mem_write_data;
+
+                if (mem_addr == INT32_REG_B_HI_ADDR)
+                    int32_b_hi <= mem_write_data;
+
+                if (mem_addr == INT32_CMD_ADDR)
+                    int32_cmd <= mem_write_data[2:0];
+
+            end
+
+        end
+
+    end
+
+
+    // =========================================================================
+    // RAM WRITE LOGIC
+    // =========================================================================
+
+    always @(posedge clk) begin
+
+        if (!rst) begin
+
+            // -------------------------------------------------------------
+            // DMA RAM transfer
+            // -------------------------------------------------------------
+
+            if (dma_active) begin
+
+                if ((^dma_source_ptr === 1'b0 ||
+                     ^dma_source_ptr === 1'b1) &&
+                    (^dma_dest_ptr === 1'b0 ||
+                     ^dma_dest_ptr === 1'b1)) begin
+
+                    if ((dma_source_ptr[26:11] == 0) &&
+                        (dma_dest_ptr[26:11] == 0)) begin
+
+                        ram_array[dma_dest_ptr[10:0]] <=
+                            ram_array[dma_source_ptr[10:0]];
+
+                    end
+
+                end
+
+            end
+
+            // -------------------------------------------------------------
+            // Normal CPU RAM write
+            // -------------------------------------------------------------
+
+            else if (mem_write_en &&
+                     (mem_addr < RAM_WORDS)) begin
+
+                ram_array[mem_addr[RAM_ADDR_BITS-1:0]] <=
+                    mem_write_data;
+
+            end
+
+        end
+
+    end
+
+
+    // =========================================================================
+    // UART MONITOR
+    // =========================================================================
+
+    always @(posedge clk) begin
+
+        if (!rst &&
+            mem_write_en &&
+            (mem_addr == VIRTUAL_UART_ADDR)) begin
+
+            $display(
+                "[UART] HEX=%04h CHAR='%c'",
+                mem_write_data,
+                mem_write_data[7:0]
+            );
+
+        end
+
+    end
+
+
+    // =========================================================================
+    // MEMORY WRITE MONITOR
+    // =========================================================================
+
+    always @(posedge clk) begin
+    if (!rst && uut.current_state == 4'd0) begin
+
+        $display(
+            "[FETCH] T=%0t PC=%04h IR=%04h OP=%h X=%04h Y=%04h JR=%07h COND=%h MET=%b",
+            $time,
+            uut.PC,
+            uut.IR,
+            uut.opcode,
+            uut.operand_x,
+            uut.operand_y,
+            uut.JR,
+            uut.condition_code,
+            uut.condition_met
+        );
+
+    end
 end
+
+
+    // =========================================================================
+    // CPU FETCH TRACE
+    // =========================================================================
+
+   // always @(posedge clk) begin
+   // if (!rst && uut.current_state == 4'd0) begin
+    //    $display(
+     //       "[FETCH] T=%0t PC=%04h ADDR=%07h DATA=%04h IR=%04h",
+      //      $time,
+       //     uut.PC,
+   //         mem_addr,
+   //         mem_read_data,
+   //         uut.IR
+    ///    );
+  //  end
+//end 
+    // =========================================================================
+    // X/Z DETECTOR
+    // =========================================================================
+
+    always @(posedge clk) begin
+
+        if (!rst) begin
+
+            if (^uut.PC === 1'bx) begin
+
+                $display("");
+                $display("============================================================");
+                $display("ERROR: CPU PC BECAME X/Z");
+                $display("============================================================");
+
+                $display("PC             = %h",  uut.PC);
+                $display("IR             = %h",  uut.IR);
+                $display("STATE          = %0d", uut.current_state);
+                $display("MEM ADDR       = %h",  mem_addr);
+                $display("MEM DATA       = %h",  mem_read_data);
+                $display("PROGRAM EAM    = %h",  uut.PROGRAM_EAM);
+                $display("DATA EAM       = %h",  uut.DATA_EAM);
+                $display("JR             = %h",  uut.JR);
+                $display("SP             = %0d", uut.stack_sp);
+                $display("INT VEC        = %h",  tb_interrupt_vector);
+
+                $display("R0             = %h", uut.R[0]);
+                $display("R1             = %h", uut.R[1]);
+                $display("R2             = %h", uut.R[2]);
+                $display("R3             = %h", uut.R[3]);
+                $display("R4             = %h", uut.R[4]);
+                $display("R5             = %h", uut.R[5]);
+                $display("R6             = %h", uut.R[6]);
+                $display("R7             = %h", uut.R[7]);
+
+                $display("============================================================");
+                $display("");
+
+                $finish;
+
+            end
+
+        end
+
+    end
+
+
+    // =========================================================================
+    // CPU REGISTER / STATE DUMP
+    // =========================================================================
+
+    task dump_cpu_state;
+
+        begin
+
+            $display("");
+            $display("================================================================");
+            $display("                 GATEWAY DRUG CPU STATE DUMP");
+            $display("================================================================");
+
+            // -------------------------------------------------------------
+            // CONTROL
+            // -------------------------------------------------------------
+
+            $display("");
+            $display("--- CONTROL ---");
+
+            $display("STATE          = %0d",  uut.state);
+            $display("CURRENT_STATE  = %0d",  uut.current_state);
+            $display("HALTED         = %b",   uut.halted);
+            $display("INT_ENABLE     = %b",   uut.interrupt_enable);
+            $display("INT_PENDING    = %b",   uut.interrupt_pending);
+            $display("EXT_INTERRUPT  = %b",   tb_interrupt);
+            $display("INT_VECTOR     = %07h", uut.IVR);
+
+            // -------------------------------------------------------------
+            // PROGRAM
+            // -------------------------------------------------------------
+
+            $display("");
+            $display("--- PROGRAM ---");
+
+            $display("PC             = %04h", uut.PC);
+            $display("IR             = %04h", uut.IR);
+            $display("INSTRUCTION_PC = %04h", uut.instruction_pc);
+            $display("NEXT_PC        = %04h", uut.next_pc);
+            $display("INSTR_LENGTH   = %0d",  uut.instruction_length);
+
+            // -------------------------------------------------------------
+            // ADDRESSING
+            // -------------------------------------------------------------
+
+            $display("");
+            $display("--- ADDRESSING ---");
+
+            $display("JR             = %07h", uut.JR);
+            $display("PROGRAM_EAM    = %03h", uut.PROGRAM_EAM);
+            $display("DATA_EAM       = %03h", uut.DATA_EAM);
+            $display("EFFECTIVE_ADDR = %07h", uut.effective_address);
+
+            // -------------------------------------------------------------
+            // REGISTERS
+            // -------------------------------------------------------------
+
+            $display("");
+            $display("--- GENERAL PURPOSE REGISTERS ---");
+
+            $display("R0 = %04h    R1 = %04h",
+                     uut.R[0], uut.R[1]);
+
+            $display("R2 = %04h    R3 = %04h",
+                     uut.R[2], uut.R[3]);
+
+            $display("R4 = %04h    R5 = %04h",
+                     uut.R[4], uut.R[5]);
+
+            $display("R6 = %04h    R7 = %04h",
+                     uut.R[6], uut.R[7]);
+
+            // -------------------------------------------------------------
+            // DECODE
+            // -------------------------------------------------------------
+
+            $display("");
+            $display("--- DECODE ---");
+
+            $display("OPCODE         = %h",  uut.opcode);
+            $display("FLAG_M         = %b",  uut.flag_M);
+            $display("REG_D          = %0d", uut.reg_D);
+            $display("FLAG_LX        = %b",  uut.flag_LX);
+            $display("REG_X          = %0d", uut.reg_X);
+            $display("FLAG_LY        = %b",  uut.flag_LY);
+            $display("REG_Y          = %0d", uut.reg_Y);
+
+            $display("IMMEDIATE_X    = %04h", uut.immediate_x);
+            $display("IMMEDIATE_Y    = %04h", uut.immediate_y);
+            $display("OPERAND_X      = %04h", uut.operand_x);
+            $display("OPERAND_Y      = %04h", uut.operand_y);
+
+            $display("CONDITION_CODE = %h",  uut.condition_code);
+            $display("CONDITION_MET  = %b",  uut.condition_met);
+
+            // -------------------------------------------------------------
+            // STACK
+            // -------------------------------------------------------------
+
+            $display("");
+            $display("--- STACK ---");
+
+            $display("STACK_SP       = %0d", uut.stack_sp);
+            $display("STACK_EMPTY    = %b",  uut.stack_empty);
+            $display("STACK_FULL     = %b",  uut.stack_full);
+
+            if (uut.stack_sp != 0) begin
+
+                $display(
+                    "STACK[TOP-1]   = %07h",
+                    uut.call_stack[uut.stack_sp[7:0] - 1]
+                );
+
+            end
+
+            // -------------------------------------------------------------
+            // BUS
+            // -------------------------------------------------------------
+
+            $display("");
+            $display("--- BUS ---");
+
+            $display("MEM_ADDR       = %07h", mem_addr);
+            $display("MEM_READ_DATA  = %04h", mem_read_data);
+            $display("MEM_WRITE_DATA = %04h", mem_write_data);
+            $display("MEM_WRITE_EN   = %b",   mem_write_en);
+            $display("DMA_ACTIVE     = %b",   dma_active);
+
+            // -------------------------------------------------------------
+            // COPROCESSORS
+            // -------------------------------------------------------------
+
+            $display("");
+            $display("--- COPROCESSORS ---");
+
+            $display("MDU A          = %04h", mdu_param_a);
+            $display("MDU B          = %04h", mdu_param_b);
+            $display("MDU PRODUCT    = %08h", mdu_product);
+
+            $display("INT32 A        = %08h", full_operand_a);
+            $display("INT32 B        = %08h", full_operand_b);
+            $display("INT32 CMD      = %0d",  int32_cmd);
+            $display("INT32 RESULT   = %08h", int32_result);
+
+            $display("FPU BUSY       = %b", fpu_busy);
+
+            $display("");
+            $display("================================================================");
+
+        end
+
+    endtask
+
+
+    // =========================================================================
+    // RESET / PROGRAM LOAD / WATCHDOG
+    // =========================================================================
+	
+integer loop_hits;
+
+initial begin
+    loop_hits = 0;
+end
+
+always @(posedge clk) begin
+
+    if (!rst &&
+        uut.current_state == 4'd0 &&
+        uut.PC == 16'h00f0) begin
+
+        loop_hits = loop_hits + 1;
+
+        $display(
+            "[BREAKPOINT] T=%0t HIT PC=00F0 count=%0d IR=%04h NEXT=%04h",
+            $time,
+            loop_hits,
+            uut.IR,
+            uut.next_pc
+        );
+
+        if (loop_hits >= 3) begin
+
+            $display("");
+            $display("============================================================");
+            $display("CPU CONTROL-FLOW LOOP DETECTED");
+            $display("============================================================");
+
+            $display("PC             = %04h", uut.PC);
+            $display("IR             = %04h", uut.IR);
+            $display("NEXT_PC        = %04h", uut.next_pc);
+            $display("STATE          = %0d", uut.current_state);
+
+            $display("");
+            $display("--- DECODE ---");
+
+            $display("OPCODE         = %h",  uut.opcode);
+            $display("CONDITION_CODE = %h",  uut.condition_code);
+            $display("CONDITION_MET  = %b",  uut.condition_met);
+
+            $display("REG_D          = %0d", uut.reg_D);
+            $display("REG_X          = %0d", uut.reg_X);
+            $display("REG_Y          = %0d", uut.reg_Y);
+
+            $display("OPERAND_X      = %04h", uut.operand_x);
+            $display("OPERAND_Y      = %04h", uut.operand_y);
+
+            $display("");
+            $display("--- ADDRESSING ---");
+
+            $display("JR             = %07h", uut.JR);
+            $display("EFFECTIVE_ADDR = %07h", uut.effective_address);
+
+            $display("");
+            $display("--- INTERRUPTS ---");
+
+            $display("INT_ENABLE     = %b", uut.interrupt_enable);
+            $display("INT_PENDING    = %b", uut.interrupt_pending);
+            $display("EXT_INTERRUPT  = %b", tb_interrupt);
+            $display("INT_VECTOR     = %07h", uut.IVR);
+
+            $display("");
+            $display("--- REGISTERS ---");
+
+            $display("R0 = %04h", uut.R[0]);
+            $display("R1 = %04h", uut.R[1]);
+            $display("R2 = %04h", uut.R[2]);
+            $display("R3 = %04h", uut.R[3]);
+            $display("R4 = %04h", uut.R[4]);
+            $display("R5 = %04h", uut.R[5]);
+            $display("R6 = %04h", uut.R[6]);
+            $display("R7 = %04h", uut.R[7]);
+
+            $display("");
+            $display("============================================================");
+
+            $finish;
+
+        end
+
+    end
+
+end
+    initial begin
+
+        tb_interrupt        = 1'b0;
+        tb_interrupt_vector = 27'h0000100;
+
+        rst = 1'b1;
+
+        // -------------------------------------------------------------
+        // Initialize RAM
+        // -------------------------------------------------------------
+
+        for (i = 0; i < RAM_WORDS; i = i + 1)
+            ram_array[i] = 16'h0000;
+
+        // -------------------------------------------------------------
+        // Load program
+        // -------------------------------------------------------------
+
+        $display("");
+        $display("============================================================");
+        $display("GATEWAY DRUG CPU TESTBENCH");
+        $display("============================================================");
+
+        $readmemh("torture.hex", ram_array);
+
+        $display("Program memory loaded from torture.hex.");
+        $display("Reset asserted.");
+        $display("============================================================");
+        $display("");
+
+        // -------------------------------------------------------------
+        // Hold reset for five clocks
+        // -------------------------------------------------------------
+
+        repeat (5)
+            @(posedge clk);
+
+        rst = 1'b0;
+
+        $display("");
+        $display("------------------------------------------------------------");
+        $display("RESET RELEASED");
+        $display("PC=%04h STATE=%0d MEM_ADDR=%07h",
+                 uut.PC,
+                 uut.current_state,
+                 mem_addr);
+        $display("------------------------------------------------------------");
+        $display("");
+
+        // -------------------------------------------------------------
+        // Optional interrupt test
+        // -------------------------------------------------------------
+
+        /*
+        repeat (50)
+            @(posedge clk);
+
+        $display("[TB] ASSERTING INTERRUPT");
+
+        tb_interrupt = 1'b1;
+
+        repeat (2)
+            @(posedge clk);
+
+        tb_interrupt = 1'b0;
+
+        $display("[TB] INTERRUPT RELEASED");
+        */
+
+        // -------------------------------------------------------------
+        // Watchdog
+        // -------------------------------------------------------------
+
+      repeat (2000)
+            @(posedge clk);
+
+        $display("");
+        $display("============================================================");
+        $display("WATCHDOG TIMEOUT");
+        $display("============================================================");
+
+        dump_cpu_state();
+
+        $display("");
+        $display("============================================================");
+
+        $finish;
+
+    end
+
+
+    // =========================================================================
+    // HLT DETECTOR
+    // =========================================================================
+
+    always @(posedge clk) begin
+
+        if (!rst &&
+            uut.current_state == 4'd9) begin
+
+            $display("");
+            $display("============================================================");
+            $display("CPU REACHED HLT");
+            $display("============================================================");
+
+            dump_cpu_state();
+
+            $display("");
+            $display("CPU HALTED NORMALLY.");
+            $display("");
+
+            $finish;
+
+        end
+
+    end
 
 endmodule
