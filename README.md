@@ -35,3 +35,5 @@ NOTE: Additional Extension hardware should inherit from the AbstractPeripheral c
 2) Download and compile hybrid_assembler.c
 3) Assemble one of the sample programs with hybrid_assembler.c
 4) feed the output of hybrid_assembler.c into RR16X_EMULATOR.cpp
+
+CURRENT ARCHITECTURE VERSION: RR16X Mk.8.2
