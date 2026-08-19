@@ -1251,9 +1251,32 @@ STJ .left_is_variable
 JEQ R5 0x1000
 STJ .left_is_literal_num   
 JEQ R5 0x2000
+STJ .left_is_parenthesized
+JEQ R5 0x3000
 CAL trigger_syntax_error 
 STJ parser_fail  
  JMP
+.left_is_parenthesized:
+STJ .parenthesized_not_open
+JNE R4 0x0028
+
+CAL advanceToken
+CAL compile_expression
+
+; R5 = inner expression result
+; R4 = current token value
+
+STJ .parenthesized_missing_close
+JNE R4 0x0029
+
+CAL advanceToken
+JMP .check_operator_token
+
+.parenthesized_not_open:
+.parenthesized_missing_close:
+CAL trigger_syntax_error
+STJ parser_fail
+JMP
 
 .left_is_variable:
 ADD R1 R4 0x0000
@@ -1284,6 +1307,8 @@ JMP
 
 .check_for_operator:
 CAL advanceToken
+
+.check_operator_token:
 STJ .expression_done
 JNE R5 0x3000
 JEQ R4 0x003B
