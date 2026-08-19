@@ -126,10 +126,29 @@ static void dealWithString(const char *data, size_t length)
     t.str.length = length;
     if (tokenCount < MAX_TOKENS) Tokens[tokenCount++] = t;
 }
-
+static int parser_error = 0; 
 static void trigger_syntax_error(const char *why)
 {
     printf("ERROR: %s\n", why ? why : "syntax error");
+    parser_error = 1; 
+}
+static void advanceToken(void);
+
+static void recover_statement(void)
+{
+    while (currentToken.type != TOKEN_EOF) {
+        if (currentToken.type == TOKEN_SYMBOL) {
+            if (currentToken.symbol.value == ';') {
+                return;                 /* leave ';' for parse_program */
+            }
+
+            if (currentToken.symbol.value == '}') {
+                return;                 /* leave '}' for execute_block */
+            }
+        }
+
+        advanceToken();
+    }
 }
 
 /*
@@ -422,6 +441,10 @@ static void execute_assignment(void)
     advanceToken(); /* consume '=' */
 
     long value = evaluate_expression();
+
+    if (parser_error){
+        return;
+    }
     set_variable(hash, value);
 
     if (currentToken.type != TOKEN_SYMBOL || currentToken.symbol.value != ';') {
@@ -529,17 +552,10 @@ static void compile_while_loop(void)
     }
     /* currentToken is now the block's '}' */
 }
-
-/* ================================================================
- * for (var = start To end) { ... }
- *
- * NOTE: the assembly version never increments the loop variable
- * anywhere in compile_for_loop - as written it's an infinite loop
- * unless the body itself modifies the counter. This uses standard
- * BASIC semantics (auto-increment by 1 each iteration) since that's
- * the only way "for" is actually usable - flagging this as a real
- * bug to fix in the assembly separately.
- * ================================================================ */
+/*
+ * The assembly compiler emits an automatic +1 increment after each
+ * loop-body execution, so this interpreter does the same.
+ */
 
 static void compile_for_loop(void)
 {
@@ -659,6 +675,7 @@ static int check_if_function_exists(unsigned long hash)
 
 static void parser_statement_dispatcher(void)
 {
+    parser_error = 0;
     if (currentToken.type == TOKEN_EOF) return;
 
     if (currentToken.type != TOKEN_ID) {
@@ -682,9 +699,18 @@ static void parse_program(void)
 {
     token_Position = 0;
     advanceToken();
+
     while (currentToken.type != TOKEN_EOF) {
         parser_statement_dispatcher();
-        advanceToken();
+
+        if (parser_error) {
+            
+            recover_statement();
+            parser_error = 0;
+        }
+
+        if (currentToken.type != TOKEN_EOF)
+            advanceToken();
     }
 }
 
