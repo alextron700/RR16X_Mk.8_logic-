@@ -335,6 +335,7 @@ static int find_function(unsigned long hash)
 
 static void parser_statement_dispatcher(void);
 static long evaluate_expression(void);
+static long evlauate_primary(void);
 static void skip_block(void);
 static void execute_block(void);
 
@@ -342,44 +343,67 @@ static void execute_block(void);
  * Expression evaluator
  * ================================================================ */
 
+static long evaluate_primary(void)
+{
+    long value;
+
+    if (currentToken.type == TOKEN_ID) {
+        if (!get_variable(currentToken.id.hash, &value)) {
+            trigger_syntax_error("undefined variable");
+            return 0;
+        }
+
+        advanceToken();
+        return value;
+    }
+
+    if (currentToken.type == TOKEN_NUMBER) {
+        value = currentToken.number.value;
+        advanceToken();
+        return value;
+    }
+
+    if (currentToken.type == TOKEN_SYMBOL &&
+        currentToken.symbol.value == '(') {
+
+        advanceToken(); /* consume '(' */
+
+        value = evaluate_expression();
+
+        if (currentToken.type != TOKEN_SYMBOL ||
+            currentToken.symbol.value != ')') {
+            trigger_syntax_error("expected ')'");
+            return 0;
+        }
+
+        advanceToken(); /* consume ')' */
+        return value;
+    }
+
+    trigger_syntax_error("expected variable, number, or '('");
+    return 0;
+}
 static long evaluate_expression(void)
 {
-    long left;
+    long left = evaluate_primary();
 
-    if (currentToken.type == TOKEN_ID) {
-        if (!get_variable(currentToken.id.hash, &left)) {
-            trigger_syntax_error("undefined variable");
-            left = 0;
-        }
-    } else if (currentToken.type == TOKEN_NUMBER) {
-        left = currentToken.number.value;
-    } else {
-        trigger_syntax_error("expected variable or number");
+    if (parser_error)
         return 0;
-    }
 
-    advanceToken();
-
-    if (currentToken.type != TOKEN_SYMBOL) return left;
+    if (currentToken.type != TOKEN_SYMBOL)
+        return left;
 
     char op = currentToken.symbol.value;
-    if (op == ';' || op == ')' || op == '{') return left; /* expression ends here */
+
+    if (op == ';' || op == ')' || op == '{')
+        return left;
 
     advanceToken();
 
-    long right;
-    if (currentToken.type == TOKEN_ID) {
-        if (!get_variable(currentToken.id.hash, &right)) {
-            trigger_syntax_error("undefined variable");
-            right = 0;
-        }
-    } else if (currentToken.type == TOKEN_NUMBER) {
-        right = currentToken.number.value;
-    } else {
-        trigger_syntax_error("expected variable or number after operator");
+    long right = evaluate_primary();
+
+    if (parser_error)
         return 0;
-    }
-    advanceToken();
 
     switch (op) {
         case '-': return left - right;
@@ -387,9 +411,9 @@ static long evaluate_expression(void)
         case '&': return left & right;
         case '|': return left | right;
         case '=': return (left == right) ? 1 : 0;
-        case '<': return (left <  right) ? 1 : 0;
-        case '>': return (left >  right) ? 1 : 0;
-        default:  return left + right; /* default per assembly's .emit_math_instructions */
+        case '<': return (left < right) ? 1 : 0;
+        case '>': return (left > right) ? 1 : 0;
+        default:  return left + right;
     }
 }
 
@@ -663,6 +687,12 @@ static void compile_function_call(void)
     token_Position = return_pos - 1;
     advanceToken();
 }
+
+
+
+
+
+
 
 /* ================================================================
  * Statement dispatcher
