@@ -6,7 +6,7 @@
 #include <vector>
 #include <algorithm>
 bus::bus(size_t size) : memory(size, 0) {}
-void bus::initDevices(std::vector<AbstractPeripheral*>& listDevices)
+void bus::initDevices(std::vector<AbstractPeripheral*> listDevices)
 {
     devices = listDevices;
 }
@@ -15,7 +15,7 @@ AbstractPeripheral* bus::findDeviceRead(uint32_t address)
 {
     for (auto* d : devices)
     {
-        const auto& R = d->readableAddresses;
+        std::vector<int32_t>& R = d->readableAddresses;
         if (std::find(R.begin(), R.end(), address) != R.end())
         {
             return d;
@@ -28,7 +28,7 @@ AbstractPeripheral* bus::findDeviceWrite(uint32_t address)
 { 
     for (auto* d : devices)
     {
-       const auto& R = d->writableAddresses;
+        std::vector<int32_t>& R = d->writableAddresses;
         if (std::find(R.begin(), R.end(), address) != R.end())
         {
             return d;
@@ -37,73 +37,106 @@ AbstractPeripheral* bus::findDeviceWrite(uint32_t address)
     return nullptr;
 }
 // The read implementation
+
 uint16_t bus::read(uint32_t address) {
     if (address < memory.size()) {
         AbstractPeripheral* d = findDeviceRead(address);
         if (d != nullptr)
         {
+            // CRITICAL CHECK: Print or assert to ensure the pointer itself isn't garbage
+            // If the program crashes exactly on the line below, 'd' is a dangling/corrupted pointer!
+           // std::cout << "DEBUG READ: Device found at 0x" << std::hex << address << "\n";
+
             return d->read(address);
         }
         else {
             return memory[address];
         }
     }
+    std::cerr << "CRITICAL: Out of bounds bus read attempted at 0x" << std::hex << address << "\n";
     return 0;
 }
 
-// The write implementation
 void bus::write(uint32_t address, uint16_t value) {
     if (address < memory.size()) {
         AbstractPeripheral* d = findDeviceWrite(address);
         if (d != nullptr)
         {
+           // std::cout << "DEBUG WRITE: Device found at 0x" << std::hex << address << "\n";
+
             d->write(address, value);
         }
         else {
             memory[address] = value;
         }
     }
+    else {
+        std::cerr << "CRITICAL: Out of bounds bus write attempted at 0x" << std::hex << address << "\n";
+        __debugbreak(); // Forces MSVC to halt immediately right here
+    }
+   // std::cout << "[DEBUG] Bus Size: " << memory.size() << " | Target Addr: " <<std::hex<< address << std::endl;
 }
 bool bus::loadProgram(const std::string& filename, uint32_t startAddress, bool isHex) {
     std::filesystem::path FS(filename);
-    std::ifstream file(FS,std::ios::in);
+
+    // FIX: Open in binary mode if it's not a hex file!
+    std::ios_base::openmode mode = std::ios::in;
+    if (!isHex) mode |= std::ios::binary;
+
+    std::ifstream file(FS, mode);
     if (!file) {
-        // Handle error: File not found
         std::cerr << "File not found!" << std::endl;
         return false;
     }
+
     std::string hexWord;
     std::vector<uint16_t> buffer;
-    if (!isHex)
-    {
-        // Read the file into a temporary buffer
-        buffer.assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    if (!isHex) {
+        // FIX: Read proper 2-byte blocks instead of individual chars
+        uint16_t word;
+        while (file.read(reinterpret_cast<char*>(&word), sizeof(word))) {
+            buffer.push_back(word);
+        }
     }
     else {
+        int tokens = 0;
         while (file >> std::hex >> hexWord) {
-            // Convert the 4-character hex string to a 16-bit integer
             try {
                 unsigned long wordValue = std::stoul(hexWord, nullptr, 16);
                 buffer.push_back(static_cast<uint16_t>(wordValue));
+                
+                // Direct conversion verification
+                std::cout << "[PARSER DEBUG] Token #" << tokens++
+                    << " | String: " << hexWord
+                    << " -> Int: 0x" << std::hex << static_cast<uint16_t>(wordValue) << "\n";
             }
             catch (const std::invalid_argument& e) {
-                
-                std::cerr << "Warning: Skipped invalid hex token '" << hexWord <<e.what()<< "'\n";
+                std::cerr << "Warning: Skipped invalid hex token '" << hexWord << "'\n";
             }
             catch (const std::out_of_range& e) {
-                std::cerr << "Warning: Hex token out of range '" << hexWord <<e.what()<< "'\n";
+                std::cerr << "Warning: Hex token out of range '" << hexWord << "'\n";
             }
         }
     }
-  //  std::cout << "DEBUG: Is Hex Mode? " << (isHex ? "YES" : "NO") << "\n";
- // std::cout << "DEBUG: Buffer size collected: " << buffer.size() << " elements.\n";
-  std::cout << "\n--- BUS WRITE LOG ---\n";
-    // Write to the Bus
+
+    std::cout << "\n--- BUS WRITE LOG ---\n";
     for (size_t i = 0; i < buffer.size(); ++i) {
-     std::cout << "Writing to Addr: 0x" << std::hex << (startAddress + i)
-      << " | Value: 0x" << buffer[i] << "\n";
-        write(startAddress + i, buffer[i]);
+        uint32_t currentAddress = startAddress + i;
+
+        // OPTIONAL: You should add a boundary check here!
+        // if (currentAddress >= MAX_BUS_SIZE) { std::cerr << "Bus overflow!"; break; }
+
+        std::cout << "Token #" << std::dec << i
+            << " | Target Bus Addr: 0x" << std::hex << (startAddress + i)
+            << " | Value Written: 0x" << buffer[i] << "\n";
+
+        write(currentAddress, buffer[i]);
+
+     
     }
+        
     std::cout << "---------------------\n\n";
+
     return true;
 }

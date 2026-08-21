@@ -17,7 +17,7 @@ CPU::CPU()
 	dataEAM = 0;
 	IVR = 0;
 	interruptMask = false;
-
+	IVR_Saved = 0;
 }
 
 void CPU::dumpState(std::ostream& out)
@@ -44,17 +44,32 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	if (interrupt && !interruptMask) {
 		// 1. You should probably clear the interrupt source here,
 		//    or ensure your emulator caller stops sending it.
-
+		std::cerr << "CPU STEP: interrupt=" << interrupt
+			<< " interruptMask=" << interruptMask
+			<< " PC=" << std::hex
+			<< ((programEAM << 16) | PC)
+			<< '\n';
 		//SP++;
 		// Use the explicit mask to ensure no sign-extension issues
-		stack.push_back(static_cast<uint32_t>((programEAM << 16) | (PC & 0xFFFF)));
+		IVR_Saved = static_cast<uint32_t>((programEAM << 16) | (PC & 0xFFFF));
+		interruptValid = true;
 
 		PC = (IVR & 0xFFFF);
 		programEAM = (IVR >> 16) & 0xFFFF;
+	//	std::cerr << "ENTERING IRQ: IVR=" << std::hex << IVR
+	//		<< " NEW PC=" << PC
+	//		<< " EAM=" << programEAM << '\n';
 		interruptMask = true; // Typically, you mask interrupts upon entering a handler
 	}
 	const uint32_t instructionAddress = (programEAM << 16) | PC;
 	uint16_t instruction = memory.read(instructionAddress);
+	if (interruptMask)
+	{
+		std::cerr << "IRQ HANDLER: address="
+			<< std::hex << instructionAddress
+			<< " instruction="
+			<< instruction << '\n';
+	}
 	int opcode = (instruction & 0xF000) >> 12;
 	bool M_flag = (instruction & 0x0800) != 0;
 	int Dest = (instruction & 0x0700) >> 8;
@@ -115,24 +130,56 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		}
 		else
 		{
+
+			std::cerr << "dataEAM WRITE at PC="
+				<< std::hex << instructionAddress
+				<< " old=" << dataEAM
+				<< " new=" << (X & 0x07FF)
+				<< " X=" << X
+				<< '\n';
 			dataEAM = (X & 0x7FF);
 		}
 		makes = false;
 		break;
 	case 1:
-		Result = X + Y;
-		if (M_flag)
+	{
+		bool carryIn = carry;
+		uint32_t temp =
+			static_cast<uint32_t>(X) +
+			static_cast<uint32_t>(Y);
+
+		carry = (temp > 0xFFFF);
+
+		Result = static_cast<int16_t>(
+			static_cast<uint16_t>(temp)
+			);
+
+		if (M_flag && carryIn)
 		{
-			++Result;
+			Result = static_cast<int16_t>(
+				static_cast<uint16_t>(Result) + 1
+				);
 		}
+
 		break;
+	}
 	case 2:
-		Result = X - Y;
-		if (M_flag)
-		{
-			--Result;
-		}
+	{
+		bool carryIn = carry;
+		Result = static_cast<int16_t>(X) - static_cast<int16_t>(Y);
+		uint32_t temp = static_cast<int32_t>(X) - static_cast<int32_t>(Y);
+
+		if (M_flag && carryIn)
+			temp--;
+
+		carry = (temp < 0);
+
+		Result = static_cast<int16_t>(
+			static_cast<uint16_t>(temp)
+			);
+
 		break;
+	}
 	case 3:
 		if (M_flag)
 		{
@@ -163,21 +210,44 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		Result = X ^ Y;
 		break;
 	case 7:
+	{
 		if (M_flag)
 		{
 			Result = std::rotl(static_cast<uint16_t>(X), (Y & 0xF));//((X << (Y & 0xF)) | (X >> (0xF - (Y & 0xF))));
 		}
 		else {
-			Result = (X << (Y & 0xf)) & 0xFFFF;
+
+			uint32_t shift = Y & 0xF;
+
+			if (shift == 0)
+			{
+				carry = false;
+				Result = X;
+			}
+			else
+			{
+				carry = ((static_cast<uint32_t>(X) >> (16 - shift)) & 1) != 0;
+				Result = static_cast<int16_t>(
+					static_cast<uint16_t>(X << shift)
+					);
+			}
 		}
 		break;
+	}
 	case 8:
 		if (M_flag)
 		{
 			Result = std::rotr(static_cast<uint16_t>((X)), (Y & 0xF));
 		}
 		else {
-			Result = (X >> (Y & 0xf)) & 0xFFFF;
+			Result = (X >> (Y & 0xf));
+			if ((X & 0x0001) != 0)
+			{
+				carry = true;
+			}
+			else {
+				carry = false;
+			}
 		}
 		break;
 	case 9:
@@ -280,7 +350,17 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		{
 			PC = (JR & 0x0000FFFF);
 			programEAM = (JR & 0xFFFF0000) >> 16;
-			//std::cout << "BRANCHING TO:" << std::hex <<JR<<'\n';
+			uint32_t target = JR;
+
+			if (target > 0x0C47)
+			{
+				std::cerr << "!!! BAD JUMP !!!\n"
+					<< "from: " << std::hex << instructionAddress << '\n'
+					<< "target: " << target << '\n'
+					<< "JR: " << JR << '\n'
+					<< "dataEAM: " << dataEAM << '\n'
+					<< "X: " << X << '\n';
+			}
 			return;
 		}
 		makes = false;
@@ -288,9 +368,12 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	case 13:
 		pushValue = PC + LX + LY + 1;
 		pushValue |= programEAM << 16;
-		std::cout << "FIRST INSTRUCTION OF SUBROUTINE:" << std::hex << memory.read(X) << std::endl;
-		std::cout << "AT ADDRESS: " << std::hex << (programEAM << 16 )|X << std::endl;
-		if (stack.size() >= 256)
+		if (trace)
+		{
+			std::cout << "FIRST INSTRUCTION OF SUBROUTINE:" << std::hex << memory.read(X) << std::endl;
+			std::cout << "AT ADDRESS: " << std::hex << X << std::endl;
+		}
+		if (stack.size() > 255)
 		{
 			std::cerr << "Stack Overflow!" << std::endl;
 			return;
@@ -301,20 +384,47 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		if (!M_flag) programEAM = dataEAM;
 		return;
 	case 14:
-		
-		std::cout << "RETURNING!" << std::endl;
+	{
+		if (trace)
+		{
+			std::cout << "RETURNING!" << std::endl;
+		}
+
 		if (stack.empty())
 		{
 			std::cerr << "Stack underflow!" << std::endl;
 			return;
 		}
+
 		popValue = stack.back();
 		stack.pop_back();
-		PC = popValue & 0xFFFF;
-		programEAM = (popValue >> 16) & 0x7FF;
+
+		if (M_flag)
+		{
+			// RETI — return from interrupt
+			if (!interruptValid)
+			{
+				std::cerr << "ERROR: Interrupt return with no active interrupt!\n";
+				//return;
+			}
+
+			PC = IVR_Saved & 0xFFFF;
+			programEAM = (IVR_Saved >> 16) & 0x07FF;
+
+			interruptValid = false;
+		}
+		else
+		{
+			// RET — normal subroutine return
+			PC = popValue & 0xFFFF;
+			programEAM = (popValue >> 16) & 0x07FF;
+		}
+
 		interruptMask = M_flag;
+
 		makes = false;
 		return;
+	}
 	default:
 		std::cerr << "CRITICAL: Unhandled Opcode " << std::hex << opcode << " at PC " << instructionAddress << std::endl;
 		makes = false;

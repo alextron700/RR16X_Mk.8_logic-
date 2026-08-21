@@ -8,7 +8,7 @@ WideIntCoprocessor::WideIntCoprocessor()
 	outLow = 0;
 	outHigh = 0;
 	command = 0;
-	readableAddresses = { 0x07ff'ffe8, 0x07ff'ffe7 };
+	readableAddresses = { 0x07ff'ffe8, 0x07ff'ffe8 };
 	writableAddresses = { 0x07ff'ffed, 0x07ff'ffec,0x07ff'ffeb,0x07ff'ffea,0x07ff'ffe9 };
 }
 uint16_t WideIntCoprocessor::read(uint32_t address)
@@ -19,12 +19,10 @@ uint16_t WideIntCoprocessor::read(uint32_t address)
 		return outLow;
 	case 0x07ff'ffe7:
 		return outHigh;
-		break;
-	deafault:
 		//AbstractPeripheral base class fallback 
 		return AbstractPeripheral::read(address);
 		break;
-	}
+}
 
 }
 void WideIntCoprocessor::write(uint32_t address, uint16_t value)
@@ -84,6 +82,6 @@ void WideIntCoprocessor::tick()
 		outWide = 0;
 	}
 	outLow = outWide & 0xFFFF;
-	outHigh = static_cast<int16_t>((outWide >> 16) & 0xFFFF);
+	outHigh =static_cast<int16_t>((outWide >> 16) & 0xFFFF);
 	return;
 }

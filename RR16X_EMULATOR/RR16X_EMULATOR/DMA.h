@@ -19,6 +19,5 @@ private:
     uint32_t src_address = 0;
     uint32_t dest_address = 0;
     uint16_t count = 0;
-   
-};
 
+};

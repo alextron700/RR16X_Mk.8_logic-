@@ -15,8 +15,8 @@ public:
 	// returns all registers
 	std::vector<uint16_t> getRegs() const
 	{
-	const std::vector<uint16_t> l = this->registers;
-	return l;
+		const std::vector<uint16_t> l = this->registers;
+		return l;
 	}
 	// returns the program counter
 	uint32_t getPC(const bool includeProgramEAM = true) const
@@ -35,7 +35,7 @@ public:
 		return JR;
 	}
 	/*//returns the stack pointer
-	int16_t getSP() const 
+	int16_t getSP() const
 	{
 		return SP;
 	}
@@ -78,6 +78,8 @@ private:
 	int16_t dataEAM;
 	// the place in memory where execution goes when an interrupt occurs
 	uint32_t IVR;
+	uint32_t IVR_Saved;
+	bool carry = false;
+	bool interruptValid = false; 
 	bool interruptMask;
 };
-

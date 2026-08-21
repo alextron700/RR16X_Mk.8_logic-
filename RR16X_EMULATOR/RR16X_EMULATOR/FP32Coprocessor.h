@@ -20,4 +20,3 @@ private:
     uint16_t outLow = 0;
     int16_t outHigh = 0;
 };
-

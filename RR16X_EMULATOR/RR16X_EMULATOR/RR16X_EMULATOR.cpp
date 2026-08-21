@@ -67,7 +67,7 @@ int main()
     Multiplier multiplier;
 
     //std::cout << "[TRACER 4] Initializing UART...\n";
-    UART uart(IE, 0x003C);
+    UART uart(IE, 0x0000'0042);
 
     // std::cout << "[TRACER 5] Initializing WIC...\n";
     WideIntCoprocessor WIC;
@@ -102,6 +102,7 @@ int main()
         bool int_signal = IE.has_active_interrupt();
         if (int_signal)
         {
+          
             cpu.updateIVR(IE.get_highest_priority_vector());
         }
 
@@ -131,4 +132,4 @@ int main()
 //   3. Use the Output window to see build output and other messages
 //   4. Use the Error List window to view errors
 //   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
+//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file 
