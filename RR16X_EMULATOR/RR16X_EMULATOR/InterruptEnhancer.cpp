@@ -18,7 +18,7 @@ bool InterruptEnhancer::has_active_interrupt() const {
 }
 
 uint32_t InterruptEnhancer::get_highest_priority_vector() const {
-    // Loop from 0 to 7. The first pending one we find wins priority!
+    // Loop from 0 to 15. The first pending one we find wins priority!
     for (size_t i = 0; i < interrupt_lines.size(); ++i) {
         if (interrupt_lines[i].is_pending && (mask_register & (1U << i))) {
             return interrupt_lines[i].vector_address;
