@@ -25,7 +25,7 @@ private:
         uint32_t vector_address = 0;
     };
 
-    // Supports 8 hardware lines (0 is highest priority, 7 is lowest)
+    // Supports 16 hardware lines (0 is highest priority, 15 is lowest)
     std::vector<InterruptRequest> interrupt_lines;
 
     // Internal registers mapped to memory space (e.g., status, masks)
