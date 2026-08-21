@@ -78,6 +78,8 @@ HEX 0000 ; Null Terminator sentinel
 ; =====================================================================
 ; RR16X SYSTEM-ON-CHIP MASTER OPERATING SHELL
 ; =====================================================================
+line_ready_flag: 
+NIL 
 BASIC_MACHINE_SHELL_START:
 ; Initialize Compiler Dynamic Memory Pool Counters at System Boot
 ADD R0 0x0000 0x0060
@@ -91,25 +93,14 @@ CAL transmit_ready_prompt
 ; 2. Initialize our line input character index counter
 XOR R6 R6 R6 ; R6 = Character index counter (= 0)
 
-.poll_keyboard_loop:
-EAM.SET 0x07FF ; Bank up to your high peripheral matrix
-LDM R1 M$[0xFFE5] ; Poll your UART Rx Status Register
-
-LDM R0 M$[0xFFE6] ; Read the incoming ASCII keyboard character byte
-EAM.SET 0x0000 ; Return to standard memory bank
-
-STJ .poll_keyboard_loop
-JEQ R1 0x0000 ; If no new character arrived, spin and wait
-CAL .IVR_HELPER
-STJ .go_here
+.idle_loop:
+LDM R0 M$[line_ready_flag]
+STJ .idle_loop
+JEQ R0 0x0000
+XOR R0 R0 R0
+STM M$[line_ready_flag] R0
+STJ .idle_loop 
 JMP 
-.IVR_helper:
-RET.C 
-; Check if the user pressed the Enter key (Carriage Return -> 0x000D)
-.go_here:
-STJ .execute_entered_line
-JEQ R0 0x000D
-JEQ R0 0x000A 
 
 ; Otherwise, save the typed character directly into your high-level source string buffer!
 EAM.SET 0x0001 ; Bank up to Page 1 address boundary space
@@ -120,10 +111,9 @@ ADD R6 R6 0x0001 ; Advance character index
 ; Echo the typed character back to the user's terminal live!
 EAM.SET 0x07FF
 STM M$[0xFFFF] R0 ; Stream character from R0 to exact hardware port 0xFFFF
+STJ .execute_entered_line
 EAM.SET 0x0000
 
-STJ .poll_keyboard_loop
-JMP ; Loop back to wait for the next character
 
 .execute_entered_line:
 ; User hit Enter! Append a 0x0000 null terminator to complete the source string
@@ -2082,4 +2072,38 @@ ADD R0 0xDEAC 0x0000 ; Staging flag
 ADD R0 R0 0x0001
 ADD R0 R0 0x0000
 HLT ; Engage hardware halt state cycle loop on CPU core
-HEX DEAD
+
+
+
+
+poll_keyboard_loop:
+EAM.SET 0x07FF
+LDM R1 M$[0xFFE5]
+LDM R0 M$[0xFFE6]
+EAM.SET 0x0000
+
+STJ .go_here
+JEQ R0 0x000D
+STJ .go_here
+JEQ R0 0x000A
+JMP .store_char
+
+.go_here:
+XOR R0 R0 R0
+EAM.SET 0x0001
+STM M$[R6] R0
+EAM.SET 0x0000
+ADD R0 0x0001 0x0000
+STM M$[line_ready_flag] R0    ; tell mainline a full line is ready
+XOR R6 R6 R6                  ; reset buffer index for next line
+RET.C
+
+.store_char:
+EAM.SET 0x0001
+STM M$[R6] R0
+EAM.SET 0x0000
+ADD R6 R6 0x0001
+EAM.SET 0x07FF
+STM M$[0xFFFF] R0
+EAM.SET 0x0000
+RET.C
