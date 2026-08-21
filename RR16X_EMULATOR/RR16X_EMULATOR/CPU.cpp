@@ -130,13 +130,15 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		}
 		else
 		{
-
-			std::cerr << "dataEAM WRITE at PC="
-				<< std::hex << instructionAddress
-				<< " old=" << dataEAM
-				<< " new=" << (X & 0x07FF)
-				<< " X=" << X
-				<< '\n';
+			if (trace)
+			{
+				std::cerr << "dataEAM WRITE at PC="
+					<< std::hex << instructionAddress
+					<< " old=" << dataEAM
+					<< " new=" << (X & 0x07FF)
+					<< " X=" << X
+					<< '\n';
+			}
 			dataEAM = (X & 0x7FF);
 		}
 		makes = false;
@@ -352,7 +354,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 			programEAM = (JR & 0xFFFF0000) >> 16;
 			uint32_t target = JR;
 
-			if (target > 0x0C47)
+			if (target > 0x0C42)
 			{
 				std::cerr << "!!! BAD JUMP !!!\n"
 					<< "from: " << std::hex << instructionAddress << '\n'
@@ -401,7 +403,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 
 		if (M_flag)
 		{
-			// RETI — return from interrupt
+			// RETI â€” return from interrupt
 			if (!interruptValid)
 			{
 				std::cerr << "ERROR: Interrupt return with no active interrupt!\n";
@@ -410,17 +412,17 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 
 			PC = IVR_Saved & 0xFFFF;
 			programEAM = (IVR_Saved >> 16) & 0x07FF;
-
+			interruptMask = false; 
 			interruptValid = false;
 		}
 		else
 		{
-			// RET — normal subroutine return
+			// RET â€” normal subroutine return
 			PC = popValue & 0xFFFF;
 			programEAM = (popValue >> 16) & 0x07FF;
 		}
 
-		interruptMask = M_flag;
+		
 
 		makes = false;
 		return;
