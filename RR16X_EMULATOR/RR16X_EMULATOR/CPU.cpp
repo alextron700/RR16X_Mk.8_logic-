@@ -354,15 +354,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 			programEAM = (JR & 0xFFFF0000) >> 16;
 			uint32_t target = JR;
 
-			if (target > 0x0C42)
-			{
-				std::cerr << "!!! BAD JUMP !!!\n"
-					<< "from: " << std::hex << instructionAddress << '\n'
-					<< "target: " << target << '\n'
-					<< "JR: " << JR << '\n'
-					<< "dataEAM: " << dataEAM << '\n'
-					<< "X: " << X << '\n';
-			}
+		
 			return;
 		}
 		makes = false;
