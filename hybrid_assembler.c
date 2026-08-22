@@ -8,10 +8,8 @@
 #include <assert.h>
 #if defined(_WIN32)
 #include <windows.h>
-#elif defined(__linux__)
-#include <unistd.h>
 #else
-#error "Unsupported platform"
+#include <unistd.h>
 #endif
 #define SHIFT_OPCODE  12
 #define SHIFT_M_FLAG  11
