@@ -72,7 +72,7 @@ void bus::write(uint32_t address, uint16_t value) {
     }
     else {
         std::cerr << "CRITICAL: Out of bounds bus write attempted at 0x" << std::hex << address << "\n";
-        __debugbreak(); // Forces MSVC to halt immediately right here
+       // __debugbreak(); // Forces MSVC to halt immediately right here
     }
    // std::cout << "[DEBUG] Bus Size: " << memory.size() << " | Target Addr: " <<std::hex<< address << std::endl;
 }
