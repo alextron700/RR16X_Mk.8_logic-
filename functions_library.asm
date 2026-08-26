@@ -567,15 +567,16 @@ CastI32F32:
     ; Zero?
 
     OR R2, R0, R1
-    JEQ CastI32F32_Zero, R2, 0x0000
+    STJ CastI32F32_Zero
+    JEQ R2, 0x0000
 
     ; Save sign.
 
     AND R4, R1, 0x8000
 
     ; Convert to magnitude if negative.
-
-    JEQ CastI32F32_MagnitudeReady, R4, 0x0000
+    STJ CastI32F32_MagnitudeReady
+    JEQ R4, 0x0000
 
     NOT.C R0
     NOT.C R1
@@ -598,8 +599,8 @@ CastI32F32_MagnitudeReady:
     ; --------------------------------------------------------
 
     ; If high word is nonzero, search bits 31..16.
-
-    JNE CastI32F32_HighSearch, R1, 0x0000
+    STJ CastI32F32_HighSearch
+    JNE R1, 0x0000
 
     ; Otherwise search bits 15..0.
 
@@ -610,12 +611,13 @@ CastI32F32_MagnitudeReady:
 CastI32F32_LowSearch:
 
     AND R2, R0, 0x8000
-    JNE CastI32F32_Found, R2, 0x0000
+    STJ CastI32F32_Found
+    JNE R2, 0x0000
 
     SHL R0, R0, 0x0001
     SUB R5, R5, 0x0001
-
-    JMP CastI32F32_LowSearch
+    STJ CastI32F32_LowSearch
+    JMP
 
 
 CastI32F32_HighSearch:
@@ -629,14 +631,15 @@ CastI32F32_HighSearch:
 CastI32F32_HighSearch_Loop:
 
     AND R2, R1, 0x8000
-    JNE CastI32F32_Found, R2, 0x0000
+    STJ CastI32F32_Found
+    JNE R2, 0x0000
 
     SHL R1, R1, 0x0001
     SHL.C R0, R0, 0x0001
 
     SUB R5, R5, 0x0001
-
-    JMP CastI32F32_HighSearch_Loop
+    STJ CastI32F32_HighSearch_Loop
+    JMP 
 
 
 CastI32F32_Found:
@@ -656,12 +659,13 @@ CastI32F32_Found:
 CastI32F32_Normalize:
 
     AND R2, R1, 0x8000
-    JNE CastI32F32_Normalized, R2, 0x0000
+    STJ CastI32F32_Normalized
+    JNE R2, 0x0000
 
     SHL R0, R0, 0x0001
     SHL.C R1, R1, 0x0001
-
-    JMP CastI32F32_Normalize
+    STJ CastI32F32_Normalize
+    JMP 
 
 
 CastI32F32_Normalized:
@@ -754,7 +758,8 @@ CastF32I32:
     ; --------------------------------------------------------
 
     AND R6, R5, 0x8000
-    JNE CastF32I32_Zero, R6, 0x0000
+    STJ CastF32I32_Zero
+    JNE R6, 0x0000
 
     ; --------------------------------------------------------
     ; Desired shift:
@@ -771,7 +776,8 @@ CastF32I32:
     ; --------------------------------------------------------
 
     AND R7, R6, 0x8000
-    JNE CastF32I32_RightShift, R7, 0x0000
+    STJ CastF32I32_RightShift
+    JNE R7, 0x0000
 
 
     ; ========================================================
@@ -779,8 +785,8 @@ CastF32I32:
     ; ========================================================
 
 CastF32I32_LeftShift:
-
-    JEQ CastF32I32_ApplySign, R6, 0x0000
+    STJ CastF32I32_ApplySign
+    JEQ R6, 0x0000
 
     ; 32-bit << 1.
 
@@ -788,8 +794,8 @@ CastF32I32_LeftShift:
     ADD.C R1, R1, R1
 
     SUB R6, R6, 0x0001
-
-    JMP CastF32I32_LeftShift
+    STJ CastF32I32_LeftShift
+    JMP 
 
 
     ; ========================================================
@@ -805,8 +811,8 @@ CastF32I32_RightShift:
 
 
 CastF32I32_RightShiftLoop:
-
-    JEQ CastF32I32_ApplySign, R6, 0x0000
+    STJ CastF32I32_ApplySign
+    JEQ R6, 0x0000
 
     ; High word first.
     ; Carry = old high bit 0.
@@ -828,8 +834,8 @@ CastF32I32_RightShiftLoop:
     OR R0, R0, R7
 
     SUB R6, R6, 0x0001
-
-    JMP CastF32I32_RightShiftLoop
+    STJ CastF32I32_RightShiftLoop
+    JMP 
 
 
     ; ========================================================
@@ -837,8 +843,8 @@ CastF32I32_RightShiftLoop:
     ; ========================================================
 
 CastF32I32_ApplySign:
-
-    JEQ CastF32I32_Return, R4, 0x0000
+    STJ CastF32I32_Return
+    JEQ R4, 0x0000
 
     ; Negate magnitude.
 
