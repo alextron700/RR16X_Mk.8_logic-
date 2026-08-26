@@ -349,23 +349,18 @@ ShrI32_1:
     LDM R0, 0x0000, R0
     LDM R1, 0x0001, R0
 
-    ; High word first.
-    ; Carry = old high bit 0.
-
+    ; Carry = original bit 0 of high word.
     SHR R1, R1, 0x0001
 
-    ; Materialize carry as 0x8000.
-
+    ; Save that carry as 0x8000.
     SUB R2, R2, R2
     ADD.C R2, R2, R2
     SHL R2, R2, 0x000F
 
-    ; Shift low word.
-
+    ; Low word shift.
     SHR R0, R0, 0x0001
 
-    ; Insert old high bit 0.
-
+    ; Bring original high bit 0 into low bit 15.
     OR R0, R0, R2
 
     STM 0x4000, R0
@@ -373,7 +368,6 @@ ShrI32_1:
 
     EAM.SET 0x0000
     RET
-
 
 ; ------------------------------------------------------------
 ; CarryToBit15
@@ -592,17 +586,24 @@ CastI32F32:
 
 CastI32F32_MagnitudeReady:
 
-    ; R5 = highest set bit position.
+    ; --------------------------------------------------------
+    ; R0:R1 = positive magnitude.
     ;
-    ; We use a straightforward scan.
+    ; Find highest set bit.
+    ;
+    ; R5 = bit position of highest set bit.
+    ;
+    ; High word occupies bits 31:16.
+    ; Low word occupies bits 15:0.
+    ; --------------------------------------------------------
 
-    SUB R5, R5, R5
-
-    ; If high word is nonzero, search it.
+    ; If high word is nonzero, search bits 31..16.
 
     JNE CastI32F32_HighSearch, R1, 0x0000
 
-    ; Low-word value.
+    ; Otherwise search bits 15..0.
+
+    SUB R5, R5, R5
     ADD R5, R5, 0x000F
 
 
@@ -619,6 +620,14 @@ CastI32F32_LowSearch:
 
 CastI32F32_HighSearch:
 
+    ; Start at bit 31.
+
+    SUB R5, R5, R5
+    ADD R5, R5, 0x001F
+
+
+CastI32F32_HighSearch_Loop:
+
     AND R2, R1, 0x8000
     JNE CastI32F32_Found, R2, 0x0000
 
@@ -627,16 +636,22 @@ CastI32F32_HighSearch:
 
     SUB R5, R5, 0x0001
 
-    JMP CastI32F32_HighSearch
+    JMP CastI32F32_HighSearch_Loop
 
 
 CastI32F32_Found:
 
-    ; Exponent = highest bit + 0x7F.
+    ; --------------------------------------------------------
+    ; R5 = highest set bit position.
+    ;
+    ; FP32 exponent = highest_bit + 0x7F.
+    ; --------------------------------------------------------
 
     ADD R5, R5, 0x007F
 
-    ; Normalize so leading 1 is bit 15 of R1.
+    ; --------------------------------------------------------
+    ; Normalize so the leading 1 is bit 15 of R1.
+    ; --------------------------------------------------------
 
 CastI32F32_Normalize:
 
@@ -651,7 +666,11 @@ CastI32F32_Normalize:
 
 CastI32F32_Normalized:
 
+    ; --------------------------------------------------------
     ; Remove implicit leading 1.
+    ;
+    ; The following 23 bits become the FP32 fraction.
+    ; --------------------------------------------------------
 
     SHL R0, R0, 0x0001
     SHL.C R1, R1, 0x0001
@@ -671,16 +690,6 @@ CastI32F32_Normalized:
 
     EAM.SET 0x0000
     RET
-
-
-CastI32F32_Zero:
-
-    STM 0x4000, 0x0000
-    STM 0x4001, 0x0000
-
-    EAM.SET 0x0000
-    RET
-
 
 ; ============================================================
 ; FP32 -> INTEGER
