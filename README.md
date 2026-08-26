@@ -16,6 +16,10 @@ WHAT'S INCLUDED:
 - SAMPLE ASSEMBLY PROGRAMS (allSystensTest.asm , test.txt, torture.asm)
 - VERILOG IMPLEMENTATION (design.sv, testbench.sv)
 ---------------------------------------
+FOR MORE TECHNICAL INFORMATION, SEE THE WIKI. AT: https://github.com/alextron700/RR16X_Mk.8_logic-/wiki
+
+
+
 OTHER NOTES:
 - INCLUDES EXTENSION HARDWARE
 ## EXTENSION HARDWARE:
