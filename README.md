@@ -1,5 +1,30 @@
 # RR16X system
-A simple 16-bit CPU with extensions and sample assembly code. 
+A 16-bit CPU with extensions and sample assembly code. 
+-----------------------------------
+THE RR16X AT A GLANCE: 
+RR16X is a 16-bit CPU built from scratch, built with two objectives: Be straightforward to program for, yet not be some retro toy. 
+The RR16X is designed to be extensible, with extensions pre-installed. If you know C++, you can extend it. 
+
+TO START, REQUISITE SOFTWARE:
+- A text editor that can output a .txt file
+- a recent C compiler 
+- a recent C++ compiler
+- optionally, an environment to run Verilog (Icarus Verilog 12.0)
+
+# GETTING STARTED
+1) Download and compile the contents of the RR16X_EMULATOR folder
+2) Download and compile hybrid_assembler.c
+3) Assemble one of the sample programs with hybrid_assembler.c
+4) type the file-path to the binary hybrid_assembler.c produced into RR16X_EMULATOR.cpp
+
+HYBRID_ASSEMBLER.C CAN PRODUCE:
+.txt, .bin, .hex
+
+The emulator can accept as input:
+.txt, .bin, .hex
+
+
+
 -----------------------------------
 SYSTEM SPECIFICATIONS:
 - 8x 16-bit GENERAL PURPOSE REGISTERS ( Can be used in any operation as any operand that accepts a register)
@@ -34,10 +59,5 @@ OTHER NOTES:
 NOTE: Additional Extension hardware should inherit from the AbstractPeripheral class. 
 
 
-# GETTING STARTED
-1) Download and compile the contents of the RR16X_EMULATOR folder
-2) Download and compile hybrid_assembler.c
-3) Assemble one of the sample programs with hybrid_assembler.c
-4) feed the output of hybrid_assembler.c into RR16X_EMULATOR.cpp
 
 CURRENT ARCHITECTURE VERSION: RR16X Mk.8.2
