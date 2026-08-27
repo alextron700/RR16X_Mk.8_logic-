@@ -14,7 +14,7 @@ TO START, REQUISITE SOFTWARE:
 # GETTING STARTED
 1. Compile the emulator in `RR16X_EMULATOR/` with a C++ compiler.
 2. Compile `hybrid_assembler.c` with a C compiler.
-3. Assemble `IntegrationTest.asm`. 
+3. Assemble `IntegrationTest.asm`. ( it will prompt you to name your output hex file. You may name it however you wish, but the last 4 characters must be `.hex`)
 4. Start the emulator.
 5. Give the emulator the `.hex` file produced by the assembler.
 6. Follow the emulator prompts.
@@ -23,10 +23,10 @@ hybrid_assembler can accept:
 .txt, .asm
 
 hybrid_assembler can produce:
-.txt, .bin, .hex
+.hex
 
 The emulator can accept as input:
-.txt, .bin, .hex
+.hex
 
 A sample dump from hybrid_assembler.c:
 https://github.com/alextron700/RR16X_Mk.8_logic-/wiki/A-sample-dump-from-hybrid_assembler.c
