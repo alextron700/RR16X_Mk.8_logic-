@@ -12,7 +12,31 @@ The project includes the CPU architecture, a custom assembler, a C++ emulator, a
 If you know C++, you can build and integrate additional hardware extensions.
 
 🚀 Getting Started
+An annotated snippet of RR16X assembly (the assembler will accept this as-is): 
+```asm
+STJ start
+JMP
+text:
+HEX 0048,0065,006C,006C,006F,0020,0057,006F,0072,006C,0064,0021,0000 ; "Hello World!\0" as ascii hex values 
+start:
+LDM R3 M$[text]
+RET
 
+.stream_loop:
+LDM R0 M$[R3]
+STJ .string_done
+JEQ R0 0x0000 ; Break stream loops at terminating null byte word
+EAM.SET 0x07FF
+STM M$[0xFFFF] R0 ; Write R0 to UART. Low byte will be printed to terminal 
+EAM.SET 0x0000
+ADD R3 R3 0x0001 ; Increment string buffer offset tracker index pointer
+STJ .stream_loop
+JMP
+.string_done:
+
+HLT
+```
+prints "Hello World!" to the terminal. 
 The basic RR16X development pipeline is:
 ```
 RR16X Assembly Source
