@@ -242,10 +242,7 @@ module gateway_drug_cpu (
     assign mem_write_data =
         operand_y;
 
-    // ================================================================
-    // INTERRUPT EDGE REGISTER
-    // ================================================================
-
+    
   
 
     // ================================================================
@@ -298,7 +295,7 @@ module gateway_drug_cpu (
                     if (halted) begin
                         state <= S_HALT;
                     end
-                    else if (interrupt_edge && interrupt_enable) begin
+                    else if (ext_interrupt&& interrupt_enable) begin
                         state <= S_INTERRUPT;
                     end
                     else begin
