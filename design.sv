@@ -3,7 +3,8 @@ module gateway_drug_cpu (
     input  wire        clk,
     input  wire        rst,
     input  wire        ext_interrupt,
-
+    input wire [26:0] ext_interrupt_vector,
+    
     output wire [26:0] mem_addr,
     input  wire [15:0] mem_read_data,
     output wire [15:0] mem_write_data,
@@ -115,14 +116,6 @@ module gateway_drug_cpu (
 
     reg [26:0] effective_address;
 
-    // ================================================================
-    // INTERRUPT EDGE DETECTION
-    // ================================================================
-
-    reg ext_interrupt_d;
-
-    wire interrupt_edge =
-        ext_interrupt && !ext_interrupt_d;
 
     // ================================================================
     // STACK HELPERS
@@ -253,12 +246,7 @@ module gateway_drug_cpu (
     // INTERRUPT EDGE REGISTER
     // ================================================================
 
-    always @(posedge clk or posedge rst) begin
-        if (rst)
-            ext_interrupt_d <= 1'b0;
-        else
-            ext_interrupt_d <= ext_interrupt;
-    end
+  
 
     // ================================================================
     // MAIN CPU
@@ -889,9 +877,9 @@ module gateway_drug_cpu (
 
                     end
 
-                    PC <= IVR[15:0];
+                 PC <= ext_interrupt_vector[15:0];
+                PROGRAM_EAM <= ext_interrupt_vector[26:16];
 
-                    PROGRAM_EAM <= IVR[26:16];
 
                     interrupt_enable <= 1'b0;
 
@@ -911,7 +899,7 @@ module gateway_drug_cpu (
                     // when interrupts are enabled.
                     //
 
-                    if (interrupt_edge && interrupt_enable) begin
+                    if (ext_interrupt && interrupt_enable) begin
 
                         halted <= 1'b0;
 
