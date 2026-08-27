@@ -12,24 +12,30 @@ TO START, REQUISITE SOFTWARE:
 - optionally, an environment to run Verilog (Icarus Verilog 12.0)
 
 # GETTING STARTED
-1) Download and compile the contents of the RR16X_EMULATOR folder
-2) Download and compile hybrid_assembler.c
-3) Assemble one of the sample programs with hybrid_assembler.c
-4) type the file-path to the binary hybrid_assembler.c produced into RR16X_EMULATOR.cpp
+1. Compile the emulator in `RR16X_EMULATOR/` with a C++ compiler.
+2. Compile `hybrid_assembler.c` with a C compiler.
+3. Assemble `IntegrationTest.asm`. 
+4. Start the emulator.
+5. Give the emulator the `.hex` file produced by the assembler.
+6. Follow the emulator prompts.
 
-HYBRID_ASSEMBLER.C CAN PRODUCE:
+hybrid_assembler can accept:
+.txt, .asm
+
+hybrid_assembler can produce:
 .txt, .bin, .hex
 
 The emulator can accept as input:
 .txt, .bin, .hex
 
-
+A sample dump from hybrid_assembler.c:
+https://github.com/alextron700/RR16X_Mk.8_logic-/wiki/A-sample-dump-from-hybrid_assembler.c
 
 -----------------------------------
 SYSTEM SPECIFICATIONS:
 - 8x 16-bit GENERAL PURPOSE REGISTERS ( Can be used in any operation as any operand that accepts a register)
 - 16-bit main ALU
-- Extended Addressing Module to greatly extend addressing capability, here you have 256 MB of addressable memory
+- Extended Addressing Module to greatly extend addressing capability, providing up to 256 MB of addressable memory
 - Independent program and data bank, meaning a program can execute in any bank, and address memory in any bank, regardless of if they're the same bank
 - 256 slots for return addresses in the return address buffer (CAL pushes and offsets, RET pops to the program counter)
 - Variable-width instructions, fixed 16-bit base word plus 0 - 2 immediate words
@@ -38,7 +44,7 @@ SYSTEM SPECIFICATIONS:
 WHAT'S INCLUDED:
 - ASSEMBLER (hybrid_assembler.c)
 - EMULATOR  (RR16X_EMULATOR)
-- SAMPLE ASSEMBLY PROGRAMS (allSystensTest.asm , test.txt, torture.asm)
+- SAMPLE ASSEMBLY PROGRAMS (allSystemsTest.asm , test.txt, torture.asm, IntegrationTest.asm)
 - VERILOG IMPLEMENTATION (design.sv, testbench.sv)
 ---------------------------------------
 FOR MORE TECHNICAL INFORMATION, SEE THE WIKI. AT: https://github.com/alextron700/RR16X_Mk.8_logic-/wiki
