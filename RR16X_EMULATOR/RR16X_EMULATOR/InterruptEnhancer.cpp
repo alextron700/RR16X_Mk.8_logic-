@@ -6,6 +6,7 @@ InterruptEnhancer::InterruptEnhancer()
     interrupt_lines.resize(16);
     readableAddresses = { 0x07ff'fff5, 0x07ff'fff4 };
     writableAddresses = { 0x07ff'fff5 };
+
 }
 bool InterruptEnhancer::has_active_interrupt() const {
     // Check if any unmasked line is actively requesting attention

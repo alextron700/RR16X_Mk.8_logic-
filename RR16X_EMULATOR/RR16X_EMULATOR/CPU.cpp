@@ -63,6 +63,10 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	}
 	const uint32_t instructionAddress = (programEAM << 16) | PC;
 	uint16_t instruction = memory.read(instructionAddress);
+	if (trace)
+	{
+		
+	}
 	if (interruptMask)
 	{
 		std::cerr << "IRQ HANDLER: address="
@@ -108,13 +112,8 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	}
 	if (trace)
 	{
-		std::cout << "PC: " << std::hex << instructionAddress
-			<< " | Op: " << opcode
-			<< " | X: " << X
-			<< " | Y: " << Y << std::endl;
-		std::cout << "LX: " << LX << " LY: " << LY << std::endl;
-		std::cout << "JR:" << JR << std::endl;
-		std::cout << " | IR: " << instruction << std::endl;
+		dumpState();
+		std::cout << "about to execute:" << std::hex << instruction << std::endl;
 	}
 	if (instructionAddress + (LX + LY) > 0x07FF'FFFF)
 	{
@@ -387,6 +386,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 		if (stack.empty())
 		{
 			std::cerr << "Stack underflow!" << std::endl;
+			PC += LX + LY + 1;
 			return;
 		}
 

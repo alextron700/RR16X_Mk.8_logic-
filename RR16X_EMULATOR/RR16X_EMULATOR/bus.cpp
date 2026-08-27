@@ -5,53 +5,59 @@
 #include <filesystem>
 #include <vector>
 #include <algorithm>
+#include <unordered_map>
+
 bus::bus(size_t size) : memory(size, 0) {}
+
 void bus::initDevices(std::vector<AbstractPeripheral*> listDevices)
 {
     devices = listDevices;
+
+    // Clear any stale lookups if initDevices is re-called
+    readMap.clear();
+    writeMap.clear();
+
+    // Fast O(1) Pre-indexing: Flatten device vectors into quick-lookup tables
+    for (auto* d : devices)
+    {
+        if (d == nullptr) continue;
+
+        for (int32_t addr : d->readableAddresses) {
+            readMap[static_cast<uint32_t>(addr)] = d;
+        }
+        for (int32_t addr : d->writableAddresses) {
+            writeMap[static_cast<uint32_t>(addr)] = d;
+        }
+    }
 }
-// see if there's a device with a readable memory-mapped address here
+
+// Drastically optimized to true O(1) constant time lookups
 AbstractPeripheral* bus::findDeviceRead(uint32_t address)
 {
-    for (auto* d : devices)
-    {
-        std::vector<int32_t>& R = d->readableAddresses;
-        if (std::find(R.begin(), R.end(), address) != R.end())
-        {
-            return d;
-        }
+    auto it = readMap.find(address);
+    if (it != readMap.end()) {
+        return it->second;
     }
     return nullptr;
 }
-// see if there's amemory-mapped register we can write to
+
 AbstractPeripheral* bus::findDeviceWrite(uint32_t address)
-{ 
-    for (auto* d : devices)
-    {
-        std::vector<int32_t>& R = d->writableAddresses;
-        if (std::find(R.begin(), R.end(), address) != R.end())
-        {
-            return d;
-        }
+{
+    auto it = writeMap.find(address);
+    if (it != writeMap.end()) {
+        return it->second;
     }
     return nullptr;
 }
-// The read implementation
 
 uint16_t bus::read(uint32_t address) {
     if (address < memory.size()) {
+        // Fast pointer extraction bypasses linear iteration loops
         AbstractPeripheral* d = findDeviceRead(address);
-        if (d != nullptr)
-        {
-            // CRITICAL CHECK: Print or assert to ensure the pointer itself isn't garbage
-            // If the program crashes exactly on the line below, 'd' is a dangling/corrupted pointer!
-           // std::cout << "DEBUG READ: Device found at 0x" << std::hex << address << "\n";
-
+        if (d != nullptr) {
             return d->read(address);
         }
-        else {
-            return memory[address];
-        }
+        return memory[address];
     }
     std::cerr << "CRITICAL: Out of bounds bus read attempted at 0x" << std::hex << address << "\n";
     return 0;
@@ -60,10 +66,7 @@ uint16_t bus::read(uint32_t address) {
 void bus::write(uint32_t address, uint16_t value) {
     if (address < memory.size()) {
         AbstractPeripheral* d = findDeviceWrite(address);
-        if (d != nullptr)
-        {
-           // std::cout << "DEBUG WRITE: Device found at 0x" << std::hex << address << "\n";
-
+        if (d != nullptr) {
             d->write(address, value);
         }
         else {
@@ -72,14 +75,17 @@ void bus::write(uint32_t address, uint16_t value) {
     }
     else {
         std::cerr << "CRITICAL: Out of bounds bus write attempted at 0x" << std::hex << address << "\n";
+<<<<<<< Updated upstream
        // __debugbreak(); // Forces MSVC to halt immediately right here
+=======
+        __debugbreak();
+>>>>>>> Stashed changes
     }
-   // std::cout << "[DEBUG] Bus Size: " << memory.size() << " | Target Addr: " <<std::hex<< address << std::endl;
 }
+
 bool bus::loadProgram(const std::string& filename, uint32_t startAddress, bool isHex) {
     std::filesystem::path FS(filename);
 
-    // FIX: Open in binary mode if it's not a hex file!
     std::ios_base::openmode mode = std::ios::in;
     if (!isHex) mode |= std::ios::binary;
 
@@ -93,50 +99,33 @@ bool bus::loadProgram(const std::string& filename, uint32_t startAddress, bool i
     std::vector<uint16_t> buffer;
 
     if (!isHex) {
-        // FIX: Read proper 2-byte blocks instead of individual chars
         uint16_t word;
         while (file.read(reinterpret_cast<char*>(&word), sizeof(word))) {
             buffer.push_back(word);
         }
     }
     else {
-        int tokens = 0;
         while (file >> std::hex >> hexWord) {
             try {
                 unsigned long wordValue = std::stoul(hexWord, nullptr, 16);
                 buffer.push_back(static_cast<uint16_t>(wordValue));
-                
-                // Direct conversion verification
-                std::cout << "[PARSER DEBUG] Token #" << tokens++
-                    << " | String: " << hexWord
-                    << " -> Int: 0x" << std::hex << static_cast<uint16_t>(wordValue) << "\n";
             }
-            catch (const std::invalid_argument& e) {
-                std::cerr << "Warning: Skipped invalid hex token '" << hexWord << "'\n";
-            }
-            catch (const std::out_of_range& e) {
-                std::cerr << "Warning: Hex token out of range '" << hexWord << "'\n";
-            }
+            catch (const std::invalid_argument&) {}
+            catch (const std::out_of_range&) {}
         }
     }
 
-    std::cout << "\n--- BUS WRITE LOG ---\n";
-    for (size_t i = 0; i < buffer.size(); ++i) {
-        uint32_t currentAddress = startAddress + i;
-
-        // OPTIONAL: You should add a boundary check here!
-        // if (currentAddress >= MAX_BUS_SIZE) { std::cerr << "Bus overflow!"; break; }
-
-        std::cout << "Token #" << std::dec << i
-            << " | Target Bus Addr: 0x" << std::hex << (startAddress + i)
-            << " | Value Written: 0x" << buffer[i] << "\n";
-
-        write(currentAddress, buffer[i]);
-
-     
+    // Optimization: Bulk verify size boundaries before starting loop
+    if (startAddress + buffer.size() > memory.size()) {
+        std::cerr << "CRITICAL: Program load size overflows bus bounds!\n";
+        return false;
     }
-        
-    std::cout << "---------------------\n\n";
 
+    // Write straight to memory space or active peripherals
+    for (size_t i = 0; i < buffer.size(); ++i) {
+        write(startAddress + i, buffer[i]);
+    }
+
+    std::cout << "Successfully mapped " << std::dec << buffer.size() << " words to bus address 0x" << std::hex << startAddress << "\n";
     return true;
 }

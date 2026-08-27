@@ -67,7 +67,7 @@ int main()
     Multiplier multiplier;
 
     //std::cout << "[TRACER 4] Initializing UART...\n";
-    UART uart(IE, 0x0000'0042);
+    UART uart(IE, 0x0000'0C72);
 
     // std::cout << "[TRACER 5] Initializing WIC...\n";
     WideIntCoprocessor WIC;
@@ -109,14 +109,11 @@ int main()
         // std::cout << "FETCHING:" << std::hex << myBus.read(PC)<<std::endl;
         if (!dma.isRunning)
         {
-            if (trace)
-            {
-                cpu.dumpState();
-            }
             cpu.step(myBus, int_signal, trace);
         }
         PC = cpu.getPC(true);
-        //cpu.dumpState();
+       
+        
     }
     // std::cerr << "LOOP EXIT: PC=" << std::hex << PC
     //     << " opcode=" << myBus.read(PC) << std::endl;
