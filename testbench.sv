@@ -449,7 +449,7 @@ module gateway_drug_tb;
     // =========================================================================
 
     always @(posedge clk) begin
-    if (!rst && uut.current_state == 4'd0) begin
+    if (!rst && uut.state == 4'd0) begin
 
         $display(
             "[FETCH] T=%0t PC=%04h IR=%04h OP=%h X=%04h Y=%04h JR=%07h COND=%h MET=%b",
@@ -473,7 +473,7 @@ end
     // =========================================================================
 
    // always @(posedge clk) begin
-   // if (!rst && uut.current_state == 4'd0) begin
+   // if (!rst && uut.state == 4'd0) begin
     //    $display(
      //       "[FETCH] T=%0t PC=%04h ADDR=%07h DATA=%04h IR=%04h",
       //      $time,
@@ -501,7 +501,7 @@ end
 
                 $display("PC             = %h",  uut.PC);
                 $display("IR             = %h",  uut.IR);
-                $display("STATE          = %0d", uut.current_state);
+                $display("STATE          = %0d", uut.state);
                 $display("MEM ADDR       = %h",  mem_addr);
                 $display("MEM DATA       = %h",  mem_read_data);
                 $display("PROGRAM EAM    = %h",  uut.PROGRAM_EAM);
@@ -552,10 +552,10 @@ end
             $display("--- CONTROL ---");
 
             $display("STATE          = %0d",  uut.state);
-            $display("CURRENT_STATE  = %0d",  uut.current_state);
+            $display("CURRENT_STATE  = %0d",  uut.state);
             $display("HALTED         = %b",   uut.halted);
             $display("INT_ENABLE     = %b",   uut.interrupt_enable);
-            $display("INT_PENDING    = %b",   uut.interrupt_pending);
+          //  $display("INT_PENDING    = %b",   uut.interrupt_pending);
             $display("EXT_INTERRUPT  = %b",   tb_interrupt);
             $display("INT_VECTOR     = %07h", uut.IVR);
 
@@ -698,7 +698,7 @@ end
 always @(posedge clk) begin
 
     if (!rst &&
-        uut.current_state == 4'd0 &&
+        uut.state == 4'd0 &&
         uut.PC == 16'h00f0) begin
 
         loop_hits = loop_hits + 1;
@@ -721,7 +721,7 @@ always @(posedge clk) begin
             $display("PC             = %04h", uut.PC);
             $display("IR             = %04h", uut.IR);
             $display("NEXT_PC        = %04h", uut.next_pc);
-            $display("STATE          = %0d", uut.current_state);
+            $display("STATE          = %0d", uut.state);
 
             $display("");
             $display("--- DECODE ---");
@@ -747,7 +747,7 @@ always @(posedge clk) begin
             $display("--- INTERRUPTS ---");
 
             $display("INT_ENABLE     = %b", uut.interrupt_enable);
-            $display("INT_PENDING    = %b", uut.interrupt_pending);
+           // $display("INT_PENDING    = %b", uut.interrupt_pending);
             $display("EXT_INTERRUPT  = %b", tb_interrupt);
             $display("INT_VECTOR     = %07h", uut.IVR);
 
@@ -817,7 +817,7 @@ end
         $display("RESET RELEASED");
         $display("PC=%04h STATE=%0d MEM_ADDR=%07h",
                  uut.PC,
-                 uut.current_state,
+                 uut.state,
                  mem_addr);
         $display("------------------------------------------------------------");
         $display("");
@@ -871,7 +871,7 @@ end
     always @(posedge clk) begin
 
         if (!rst &&
-            uut.current_state == 4'd9) begin
+            uut.state == 4'd9) begin
 
             $display("");
             $display("============================================================");
