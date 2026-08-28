@@ -162,6 +162,7 @@ Example assembler output
 Assembler Output Example
 
 🧠 System Specifications
+```
 CPU
 8 × 16-bit general-purpose registers
 Registers can be used as operands wherever an instruction accepts a register.
@@ -180,6 +181,7 @@ Control Flow
 256-slot return address buffer
 CAL pushes and offsets return addresses.
 RET retrieves the return address and transfers execution back to the caller.
+```
 🔧 What's Included
 Assembler
 `
