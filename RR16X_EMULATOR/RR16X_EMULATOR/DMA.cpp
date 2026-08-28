@@ -62,8 +62,8 @@ void DMA::tick()
 		Bus.write(dest_address, x);
 		src_address++;
 		dest_address++;
-		count--;
-		if (count - 1 == 0)
+		--count;
+		if (count == 0)
 		{
 			enhancer.raise_interrupt(2, handler_address);
 		}

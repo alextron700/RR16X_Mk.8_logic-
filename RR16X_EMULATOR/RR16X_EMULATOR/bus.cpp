@@ -75,11 +75,7 @@ void bus::write(uint32_t address, uint16_t value) {
     }
     else {
         std::cerr << "CRITICAL: Out of bounds bus write attempted at 0x" << std::hex << address << "\n";
-<<<<<<< Updated upstream
-       // __debugbreak(); // Forces MSVC to halt immediately right here
-=======
-        __debugbreak();
->>>>>>> Stashed changes
+
     }
 }
 

@@ -63,10 +63,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	}
 	const uint32_t instructionAddress = (programEAM << 16) | PC;
 	uint16_t instruction = memory.read(instructionAddress);
-	if (trace)
-	{
-		
-	}
+
 	if (interruptMask)
 	{
 		std::cerr << "IRQ HANDLER: address="

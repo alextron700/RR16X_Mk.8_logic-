@@ -8,7 +8,7 @@ WideIntCoprocessor::WideIntCoprocessor()
 	outLow = 0;
 	outHigh = 0;
 	command = 0;
-	readableAddresses = { 0x07ff'ffe8, 0x07ff'ffe8 };
+	readableAddresses = { 0x07ff'ffe8, 0x07ff'ffe7 };
 	writableAddresses = { 0x07ff'ffed, 0x07ff'ffec,0x07ff'ffeb,0x07ff'ffea,0x07ff'ffe9 };
 }
 uint16_t WideIntCoprocessor::read(uint32_t address)
