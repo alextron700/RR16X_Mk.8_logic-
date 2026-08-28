@@ -9,8 +9,7 @@ private:
     uint16_t time = 0;
     uint32_t interruptAddr;
 public:
-    Timer(InterruptEnhancer &ie, uint32_t handler) : enhancer(ie) {
-        interruptAddr = handler;
+    Timer(InterruptEnhancer &ie) : enhancer(ie) {
         readableAddresses = { 0x07ff'fffe };
     };
     void write(uint32_t address, uint16_t value) override;

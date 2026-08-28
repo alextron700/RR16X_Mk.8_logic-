@@ -21,7 +21,7 @@ void Timer::tick()
 { 
 		if (++time == 0)
 		{
-			enhancer.raise_interrupt(0, interruptAddr);
+			enhancer.raise_interrupt(0);
 		}
 		else {
 			enhancer.clear_interrupt(0);

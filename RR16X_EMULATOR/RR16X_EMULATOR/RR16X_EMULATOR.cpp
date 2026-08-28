@@ -57,26 +57,13 @@ int main()
         trace = false;
     }
     std::cout << "STARTING EXECUTION...\n";
-    // std::cout << "[TRACER 1] Initializing IE...\n";
-    InterruptEnhancer IE;
-
-    // std::cout << "[TRACER 2] Initializing Timer...\n";
-    Timer timer(IE, 0x00CE);
-
-    //std::cout << "[TRACER 3] Initializing Multiplier...\n";
+    InterruptEnhancer IE(myBus);
+    Timer timer(IE);          // <-- see note below: this ctor arg is now UNUSED
     Multiplier multiplier;
-
-    //std::cout << "[TRACER 4] Initializing UART...\n";
-    UART uart(IE, 0x0000'0C72);
-
-    // std::cout << "[TRACER 5] Initializing WIC...\n";
+    UART uart(IE);                     // no more hardcoded 0x0042
     WideIntCoprocessor WIC;
-
-    // std::cout << "[TRACER 6] Initializing FC...\n";
     FP32Coprocessor FC;
-
-    // std::cout << "[TRACER 7] Initializing DMA...\n";
-    DMA dma(myBus, IE, 0x00D2);
+    DMA dma(myBus, IE);
 
     //std::cout << "[TRACER 8] About to load program from: " << filePath << "\n";
     if (!myBus.loadProgram(filePath, 0x0000, true)) {

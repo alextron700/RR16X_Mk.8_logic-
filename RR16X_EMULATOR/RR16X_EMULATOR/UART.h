@@ -6,7 +6,7 @@ class UART :
     public AbstractPeripheral
 {
 public:
-    UART(InterruptEnhancer& ie,uint32_t IVA);
+    UART(InterruptEnhancer& ie);
 
     // Overrides from AbstractPeripheral
     uint16_t read(uint32_t address) override;

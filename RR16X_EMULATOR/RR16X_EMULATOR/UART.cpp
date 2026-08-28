@@ -17,9 +17,9 @@ int linux_kbhit() {
     return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
 }
 #endif
-UART::UART(InterruptEnhancer& ie, uint32_t IVA = 0) : enhancer(ie) {
+UART::UART(InterruptEnhancer& ie) : enhancer(ie) {
     status_register = 0x0002; // TX is always ready to receive characters
-    UART_VECTOR_ADDRESS = IVA;
+    UART_VECTOR_ADDRESS;
     readableAddresses = { 0x07ff'ffe6,0x7ff'ffe5,0x07ff'ffe4};
     writableAddresses = { 0x07ff'ffff, 0x07ff'ffe4 };
 }
@@ -115,7 +115,7 @@ void UART::tick()
         // Alert the Interrupt Enhancer if UART interrupts are configured active
         if (control_register & 0x0001)
         {
-            enhancer.raise_interrupt(UART_INTERRUPT_LINE, UART_VECTOR_ADDRESS);
+            enhancer.raise_interrupt(UART_INTERRUPT_LINE);
             
         }
     }
