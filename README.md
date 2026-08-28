@@ -19,8 +19,8 @@ JMP
 text:
 HEX 0048,0065,006C,006C,006F,0020,0057,006F,0072,006C,0064,0021,0000 ; "Hello World!\0" as ascii hex values 
 start:
-LDM R3 M$[text]
-RET
+ADD R3 0x0000 text 
+
 
 .stream_loop:
 LDM R0 M$[R3]
