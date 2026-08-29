@@ -1,4 +1,4 @@
-RR16X System (Mk.8.2)
+# RR16X System (Mk.8.2)
 
 A custom, extensible 16-bit CPU architecture built from scratch.
 
@@ -11,7 +11,7 @@ The project includes the CPU architecture, a custom assembler, a C++ emulator, a
 
 If you know C++, you can build and integrate additional hardware extensions.
 
-🚀 Getting Started
+# 🚀 Getting Started
 An annotated snippet of RR16X assembly (the assembler will accept this as-is): 
 ```asm
 STJ start
@@ -56,14 +56,14 @@ RR16X Assembly Source
 
 You write an RR16X assembly program, assemble it into machine code, and then run that machine code using the emulator.
 
-Prerequisites
+# Prerequisites - General 
 Required
-A text editor capable of saving plain-text files
-A C compiler
-A C++ compiler
-Optional
-A Verilog/SystemVerilog simulator, such as Icarus Verilog 12.0
-🪟 Windows
+- A text editor capable of saving plain-text files
+- A C compiler
+- A C++ compiler
+- Optional
+- A Verilog/SystemVerilog simulator, such as Icarus Verilog 12.0
+## 🪟 Windows
 Option A — Visual Studio
 
 Prerequisite: Visual Studio 2022 with the Desktop development with C++ workload.
@@ -89,7 +89,7 @@ Run the emulator
 
 For a first run, use IntegrationTest.asm:
 ```
-hybrid_assembler.exe IntegrationTest.asm IntegrationTest.hex
+hybrid_assembler.exe 
 RR16X_EMULATOR.exe
 ```
 
@@ -103,7 +103,7 @@ RR16X_EMULATOR.exe
 
 Running both IntegrationTest.asm and torture.asm is recommended for your first setup.
 
-🐧 Linux / macOS
+## 🐧 Linux / macOS
 Prerequisites
 
 You will need:
@@ -130,7 +130,7 @@ When prompted, provide the path to the file produced by the assembler.
 
 Then repeat with:
 ```
-./hybrid_assembler torture.asm torture.hex
+./hybrid_assembler 
 ./rr16x_emulator
 ```
 📄 Assembler and Emulator File Formats
@@ -161,7 +161,7 @@ Example assembler output
 
 Assembler Output Example
 
-🧠 System Specifications
+# 🧠 System Specifications
 ```
 CPU
 8 × 16-bit general-purpose registers
@@ -283,16 +283,16 @@ RR16X Wiki
 
 The Wiki contains deeper information about the architecture, instruction set, assembler, memory model, ABI, and extensions.
 
-🧭 Where to Go Next
+#🧭 Where to Go Next
 I want to write RR16X programs
 
 Start with:
 
-IntegrationTest.asm
-torture.asm
-The assembler documentation
-The instruction-set documentation
-I want to understand the CPU
+- IntegrationTest.asm
+- torture.asm
+- The assembler documentation
+- The instruction-set documentation
+- I want to understand the CPU
 
 Start with the system specifications above, then move to the architecture and ISA documentation in the Wiki.
 
