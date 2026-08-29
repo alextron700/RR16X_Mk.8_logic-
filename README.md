@@ -133,7 +133,14 @@ Then repeat with:
 ./hybrid_assembler 
 ./rr16x_emulator
 ```
-📄 Assembler and Emulator File Formats
+## interpreting the trace of hybrid_assembler.c
+the trace it produces may look daunting, but don't worry. There is only 1 line you can ctrl+F for to know your program assembled successfully:
+`
+Success! Saved to 
+`
+followed by the name of your hex file. 
+
+# 📄 Assembler and Emulator File Formats
 
 The assembler accepts:
 `
@@ -273,7 +280,7 @@ RR16X_Mk.8_logic-/
 └── ABI.md
     └── Application Binary Interface documentation
 ```
-📖 Documentation
+# 📖 Documentation
 
 The README is intended to get you up and running.
 
@@ -283,7 +290,7 @@ RR16X Wiki
 
 The Wiki contains deeper information about the architecture, instruction set, assembler, memory model, ABI, and extensions.
 
-#🧭 Where to Go Next
+# 🧭 Where to Go Next
 I want to write RR16X programs
 
 Start with:
