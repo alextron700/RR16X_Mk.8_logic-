@@ -98,7 +98,7 @@ void UART::tick()
         tcsetattr(STDIN_FILENO, TCSANOW, &new_t);
 
         // Read the single raw byte
-        read(STDIN_FILENO, &key_char, 1);
+        ::read(STDIN_FILENO, &key_char, 1);
 
         // Restore standard terminal settings immediately
         tcsetattr(STDIN_FILENO, TCSANOW, &old_t);
