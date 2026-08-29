@@ -44,11 +44,14 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	if (interrupt && !interruptMask) {
 		// 1. You should probably clear the interrupt source here,
 		//    or ensure your emulator caller stops sending it.
+		if(trace)
+		{
 		std::cerr << "CPU STEP: interrupt=" << interrupt
 			<< " interruptMask=" << interruptMask
 			<< " PC=" << std::hex
 			<< ((programEAM << 16) | PC)
 			<< '\n';
+		}
 		//SP++;
 		// Use the explicit mask to ensure no sign-extension issues
 		IVR_Saved = static_cast<uint32_t>((programEAM << 16) | (PC & 0xFFFF));
@@ -64,7 +67,7 @@ void CPU::step(bus& memory, bool interrupt, bool trace)
 	const uint32_t instructionAddress = (programEAM << 16) | PC;
 	uint16_t instruction = memory.read(instructionAddress);
 
-	if (interruptMask)
+	if (interruptMask && trace)
 	{
 		std::cerr << "IRQ HANDLER: address="
 			<< std::hex << instructionAddress
