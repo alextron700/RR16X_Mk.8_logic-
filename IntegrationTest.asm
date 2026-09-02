@@ -24,6 +24,16 @@
 
 
 start:
+    ADD R0 0x0000 timer_isr
+    STM M$[0xFF00] R0          ; vector table slot 0 = Timer's real address
+
+
+    ADD R0 0x0000 dma_isr
+    STM M$[0xFF02] R0          ; vector table slot 2 = DMA's real address
+
+    EAM.SET 0x07FF
+    STM M$[0xFFF5] 0x0005
+    EAM.SET 0x0000
 
     ; clear variables
 
