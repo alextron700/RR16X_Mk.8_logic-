@@ -964,7 +964,7 @@ int process_high_level_compile(const char* line_buffer, FILE* output_file) {
             compile_instruction_safe(eam_op, "0x07FF", NULL, NULL, output_file, "EAM.SET");
             char addr_str[16], val_str[16];
             sprintf(addr_str, "0xFFFF");
-            sprintf(val_str, "%d", ch);
+            sprintf(val_str, "%04x\n", ch);
 
             compile_instruction_safe(stm_op, "R0", addr_str, val_str, output_file, "STM.C");
             compile_instruction_safe(eam_op, "0x0000", NULL, NULL, output_file, "EAM.SET");
